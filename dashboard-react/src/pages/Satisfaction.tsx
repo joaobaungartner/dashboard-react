@@ -44,9 +44,8 @@ function formatPercent(n?: number) {
 }
 
 function platformColor(value: number) {
-  // 3 (baixo) -> 5 (alto)
   const clamped = Math.max(3, Math.min(5, value));
-  const t = (clamped - 3) / 2; // 0..1
+  const t = (clamped - 3) / 2;
   const r = Math.round(240 - 120 * t);
   const g = Math.round(70 + 150 * t);
   const b = Math.round(90 + 40 * t);
@@ -62,9 +61,8 @@ export default function Satisfaction() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtros amigáveis (UI) - filtros aplicados no frontend
   const [selectedScore, setSelectedScore] = useState<number | "all">("all");
-  const [dateRangeDays, setDateRangeDays] = useState<number | "all">(30); // 3, 7, 14, 30, 90 ou "all"
+  const [dateRangeDays, setDateRangeDays] = useState<number | "all">(30);
   const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
   const [deliveryStatus, setDeliveryStatus] = useState<"all" | "atrasados" | "no_prazo">("all");
   const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
@@ -110,14 +108,11 @@ export default function Satisfaction() {
 
   useEffect(() => {
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Listas dinâmicas para filtros (plataformas e macrobairros)
   const platformList = useMemo(() => Array.from(new Set(heatmap.map((p) => p.platform))), [heatmap]);
   const macroList = useMemo(() => Array.from(new Set(byMacro.map((m) => m.macro_bairro))), [byMacro]);
 
-  // Dados filtrados no frontend
   const filteredTimeseries = useMemo(() => {
     if (dateRangeDays === "all") return timeseries;
     const cutoff = new Date();
@@ -126,7 +121,7 @@ export default function Satisfaction() {
   }, [timeseries, dateRangeDays]);
 
   const filteredScatter = useMemo(() => {
-    const threshold = 30; // min para considerar atrasado (ajustável)
+    const threshold = 30;
     return scatter.filter((s) => {
       const byScore = selectedScore === "all" ? true : Math.round(s.satisfacao) === selectedScore;
       const byStatus =
@@ -165,10 +160,8 @@ export default function Satisfaction() {
         </div>
       )}
 
-      {/* Filtros */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Nota de satisfação */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Nota de satisfação</label>
             <select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))} className="w-full border rounded px-2 py-2">
@@ -181,7 +174,6 @@ export default function Satisfaction() {
             </select>
           </div>
 
-          {/* Intervalo de datas */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Período</label>
             <select
@@ -198,7 +190,6 @@ export default function Satisfaction() {
             </select>
           </div>
 
-          {/* Status de entrega */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Entrega</label>
             <select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as any)} className="w-full border rounded px-2 py-2">
@@ -208,7 +199,6 @@ export default function Satisfaction() {
             </select>
           </div>
 
-          {/* Plataformas (dropdown) */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Plataforma</label>
             <select value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)} className="w-full border rounded px-2 py-2">
@@ -219,7 +209,6 @@ export default function Satisfaction() {
             </select>
           </div>
 
-          {/* Macro-bairros (dropdown) */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Macro-bairro</label>
             <select value={selectedMacro} onChange={(e) => setSelectedMacro(e.target.value)} className="w-full border rounded px-2 py-2">
