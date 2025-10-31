@@ -22,6 +22,7 @@ type KpisResponse = {
   tempo_medio_entrega: number;
   atraso_medio: number;
   distancia_media: number;
+  on_time_rate_pct: number;
 };
 
 type TimeSeriesItem = { date: string; avg_delivery_minutes: number };
@@ -61,7 +62,6 @@ function quantiles(values: number[]) {
 }
 
 function delayColorScale(value: number) {
-  // 0 (verde) -> 10+ (vermelho)
   const v = Math.max(0, Math.min(10, value)) / 10;
   const r = Math.round(255 * v);
   const g = Math.round(200 * (1 - v));
@@ -140,15 +140,19 @@ export default function Ops() {
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard title="Tempo médio de preparo" value={formatMinutes(kpis?.tempo_medio_preparo)} />
         <KpiCard title="Tempo médio de entrega" value={formatMinutes(kpis?.tempo_medio_entrega)} />
         <KpiCard title="Atraso médio" value={formatMinutes(kpis?.atraso_medio)} />
         <KpiCard title="Distância média" value={kpis ? `${kpis.distancia_media.toFixed(1)} km` : "-"} />
+        <KpiCard
+          title="Entregas no prazo"
+          value={kpis?.on_time_rate_pct !== undefined && !Number.isNaN(kpis?.on_time_rate_pct)
+            ? `${kpis.on_time_rate_pct.toFixed(1)}%`
+            : "-"}
+        />
       </div>
 
-      {/* Charts em grade 2x2 como Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Série temporal de entrega</h3>
@@ -233,6 +237,3 @@ function KpiCard({ title, value }: { title: string; value: string }) {
     </div>
   );
 }
-
-// Boxplot completo exigiria desenho customizado. Aqui usamos mediana + IQR via ErrorBar.
-
