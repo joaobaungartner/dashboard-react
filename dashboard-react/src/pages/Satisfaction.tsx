@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getJson } from "../utils/api";
+import { getJson, parseDateString } from "../utils/api";
 import {
   ResponsiveContainer,
   LineChart,
@@ -44,12 +44,18 @@ function formatPercent(n?: number) {
 }
 
 function platformColor(value: number) {
+  // 3 (baixo) -> 5 (alto)
   const clamped = Math.max(3, Math.min(5, value));
-  const t = (clamped - 3) / 2;
+  const t = (clamped - 3) / 2; // 0..1
   const r = Math.round(240 - 120 * t);
   const g = Math.round(70 + 150 * t);
   const b = Math.round(90 + 40 * t);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function formatDateLabel(d?: Date | null) {
+  if (!d) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(d);
 }
 
 export default function Satisfaction() {
@@ -58,13 +64,19 @@ export default function Satisfaction() {
   const [scatter, setScatter] = useState<ScatterItem[]>([]);
   const [timeseries, setTimeseries] = useState<TimeseriesItem[]>([]);
   const [heatmap, setHeatmap] = useState<HeatmapItem[]>([]);
+  const [datasetStart, setDatasetStart] = useState<Date | null>(null);
+  const [datasetEnd, setDatasetEnd] = useState<Date | null>(null);
+  const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
+  const [metaMacros, setMetaMacros] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filtros amigáveis (UI) - filtros aplicados no frontend
   const [selectedScore, setSelectedScore] = useState<number | "all">("all");
-  const [dateRangeDays, setDateRangeDays] = useState<number | "all">(30);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
-  const [deliveryStatus, setDeliveryStatus] = useState<"all" | "atrasados" | "no_prazo">("all");
+  const [deliveryStatus, setDeliveryStatus] = useState<"all" | "atrasado" | "no_prazo">("all");
   const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
 
   async function fetchAll() {
@@ -72,27 +84,44 @@ export default function Satisfaction() {
       setLoading(true);
       setError(null);
 
-      const [k, m, sc, ts, hm] = await Promise.all([
-        getJson<SatisfactionKpis>("/api/dashboard/satisfaction/kpis"),
-        getJson<ByMacroResponse>("/api/dashboard/satisfaction/by_macro_bairro", {
-          macro_col: "macro_bairro",
-          score_col: "satisfacao_nivel",
-        }),
-        getJson<ScatterResponse>("/api/dashboard/satisfaction/scatter_time_vs_score", {
-          delivery_col: "actual_delivery_minutes",
-          score_col: "satisfacao_nivel",
-        }),
-        getJson<TimeseriesResponse>("/api/dashboard/satisfaction/timeseries", {
-          date_col: "order_date",
-          score_col: "satisfacao_nivel",
-          freq: "M",
-        }),
-        getJson<HeatmapResponse>("/api/dashboard/satisfaction/heatmap_platform", {
-          platform_col: "platform",
-          score_col: "satisfacao_nivel",
-        }),
+      const params: Record<string, any> = {};
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (selectedPlatform !== "all") params.platform = [selectedPlatform];
+      if (selectedMacro !== "all") params.macro_bairro = [selectedMacro];
+      if (selectedScore !== "all") {
+        params.score_min = selectedScore;
+        params.score_max = selectedScore;
+      }
+      if (deliveryStatus !== "all") params.delivery_status = deliveryStatus;
+
+      const [kOverview, metaPlats, metaMacs, k, m, sc, ts, hm] = await Promise.all([
+        getJson<{ total_pedidos: number; receita_total: number; ticket_medio: number; periodo: { min: string; max: string } | null }>(
+          "/api/dashboard/overview/kpis"
+        ),
+        getJson<{ data: string[] }>("/api/dashboard/meta/platforms"),
+        getJson<{ data: string[] }>("/api/dashboard/meta/macros"),
+        getJson<SatisfactionKpis>("/api/dashboard/satisfaction/kpis", params),
+        getJson<ByMacroResponse>("/api/dashboard/satisfaction/by_macro_bairro", params),
+        getJson<ScatterResponse>("/api/dashboard/satisfaction/scatter_time_vs_score", params),
+        getJson<TimeseriesResponse>("/api/dashboard/satisfaction/timeseries", { ...params, freq: "M" }),
+        getJson<HeatmapResponse>("/api/dashboard/satisfaction/heatmap_platform", params),
       ]);
 
+      // Definir intervalo do dataset a partir do overview.kpis.periodo
+      if (kOverview && (kOverview as any).periodo) {
+        const p = (kOverview as any).periodo as { min: string; max: string };
+        if (p?.min && p?.max) {
+          setDatasetStart(new Date(p.min));
+          setDatasetEnd(new Date(p.max));
+          // Inicializar inputs se vazios
+          if (!startDate) setStartDate(p.min.substring(0, 10));
+          if (!endDate) setEndDate(p.max.substring(0, 10));
+        }
+      }
+
+      setMetaPlatforms(metaPlats.data ?? []);
+      setMetaMacros(metaMacs.data ?? []);
       setKpis(k);
       setByMacro(m.data ?? []);
       setScatter(sc.data ?? []);
@@ -108,41 +137,21 @@ export default function Satisfaction() {
 
   useEffect(() => {
     fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const platformList = useMemo(() => Array.from(new Set(heatmap.map((p) => p.platform))), [heatmap]);
-  const macroList = useMemo(() => Array.from(new Set(byMacro.map((m) => m.macro_bairro))), [byMacro]);
+  const platformList = useMemo(() => metaPlatforms, [metaPlatforms]);
+  const macroList = useMemo(() => metaMacros, [metaMacros]);
 
-  const filteredTimeseries = useMemo(() => {
-    if (dateRangeDays === "all") return timeseries;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - dateRangeDays);
-    return timeseries.filter((t) => new Date(t.date) >= cutoff);
-  }, [timeseries, dateRangeDays]);
+  const filteredTimeseries = useMemo(() => timeseries, [timeseries]);
 
-  const filteredScatter = useMemo(() => {
-    const threshold = 30;
-    return scatter.filter((s) => {
-      const byScore = selectedScore === "all" ? true : Math.round(s.satisfacao) === selectedScore;
-      const byStatus =
-        deliveryStatus === "all"
-          ? true
-          : deliveryStatus === "atrasados"
-          ? s.delivery_minutes > threshold
-          : s.delivery_minutes <= threshold;
-      return byScore && byStatus;
-    });
-  }, [scatter, selectedScore, deliveryStatus]);
+  const filteredScatter = useMemo(() => scatter, [scatter]);
 
-  const filteredByMacro = useMemo(() => {
-    if (selectedMacro === "all") return byMacro;
-    return byMacro.filter((m) => m.macro_bairro === selectedMacro);
-  }, [byMacro, selectedMacro]);
+  const filteredByMacro = useMemo(() => byMacro, [byMacro]);
 
-  const filteredHeatmap = useMemo(() => {
-    if (selectedPlatform === "all") return heatmap;
-    return heatmap.filter((p) => p.platform === selectedPlatform);
-  }, [heatmap, selectedPlatform]);
+  const filteredHeatmap = useMemo(() => heatmap, [heatmap]);
+
+  // Período absoluto via início/fim; dropdown de período removido conforme solicitação
 
   return (
     <div className="space-y-6">
@@ -150,6 +159,12 @@ export default function Satisfaction() {
         <h2 className="text-2xl font-semibold">Satisfação do Cliente</h2>
         {loading && <span className="text-sm text-gray-500">Carregando…</span>}
       </div>
+
+      {datasetStart && datasetEnd && (
+        <div className="text-sm text-gray-600">
+          Período dos dados: <span className="font-medium">{formatDateLabel(datasetStart)}</span> — <span className="font-medium">{formatDateLabel(datasetEnd)}</span>
+        </div>
+      )}
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">{error}</div>}
 
@@ -160,8 +175,9 @@ export default function Satisfaction() {
         </div>
       )}
 
+      {/* Filtros */}
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Nota de satisfação</label>
             <select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))} className="w-full border rounded px-2 py-2">
@@ -174,31 +190,28 @@ export default function Satisfaction() {
             </select>
           </div>
 
+          
+
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Período</label>
-            <select
-              value={String(dateRangeDays)}
-              onChange={(e) => setDateRangeDays(e.target.value === "all" ? "all" : Number(e.target.value))}
-              className="w-full border rounded px-2 py-2"
-            >
-              <option value="all">Todos</option>
-              <option value="3">Últimos 3 dias</option>
-              <option value="7">Última semana</option>
-              <option value="14">Últimas 2 semanas</option>
-              <option value="30">Último mês</option>
-              <option value="90">Últimos 3 meses</option>
-            </select>
+            <label className="block text-sm text-gray-600 mb-1">Início</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border rounded px-2 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Fim</label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full border rounded px-2 py-2" />
           </div>
 
+          {/* Status de entrega */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Entrega</label>
             <select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as any)} className="w-full border rounded px-2 py-2">
               <option value="all">Todas</option>
-              <option value="atrasados">Atrasados</option>
+              <option value="atrasado">Atrasados</option>
               <option value="no_prazo">No prazo</option>
             </select>
           </div>
 
+          {/* Plataformas (dropdown) */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Plataforma</label>
             <select value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)} className="w-full border rounded px-2 py-2">
@@ -209,6 +222,7 @@ export default function Satisfaction() {
             </select>
           </div>
 
+          {/* Macro-bairros (dropdown) */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">Macro-bairro</label>
             <select value={selectedMacro} onChange={(e) => setSelectedMacro(e.target.value)} className="w-full border rounded px-2 py-2">
@@ -218,6 +232,11 @@ export default function Satisfaction() {
               ))}
             </select>
           </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button onClick={fetchAll} disabled={loading} className={`px-3 py-2 rounded border ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}>
+            {loading ? "Aplicando…" : "Aplicar filtros"}
+          </button>
         </div>
       </div>
 
@@ -253,11 +272,11 @@ export default function Satisfaction() {
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Série temporal da satisfação</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={filteredTimeseries}>
+            <LineChart data={filteredTimeseries.map((d) => ({ ...d, date: parseDateString(d.date) }))}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
+              <XAxis dataKey="date" tickFormatter={(v) => new Intl.DateTimeFormat("pt-BR").format(v)} />
               <YAxis domain={[0, 5]} />
-              <Tooltip formatter={(v: any) => formatScore(Number(v))} />
+              <Tooltip labelFormatter={(v) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(v as Date)} formatter={(v: any) => formatScore(Number(v))} />
               <Line type="monotone" dataKey="avg_satisfacao" stroke="#0ea5e9" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
