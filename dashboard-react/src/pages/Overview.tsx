@@ -21,7 +21,7 @@ type KPIOverview = {
   total_pedidos: number;
   receita_total: number;
   ticket_medio: number;
-  cancelados_pct?: number; // 0–1 ou 0–100
+  cancelados_pct?: number;
   pedidos_por_dia?: number;
 };
 
@@ -155,7 +155,6 @@ export default function Overview() {
           </ResponsiveContainer>
         </div>
 
-        {/* Card do mapa removido a pedido do usuário */}
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Pedidos por plataforma</h3>
