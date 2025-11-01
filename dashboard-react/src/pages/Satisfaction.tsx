@@ -58,6 +58,19 @@ function formatDateLabel(d?: Date | null) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(d);
 }
 
+function getPercentMuitoSatisfeitos(k: SatisfactionKpis | null): number | undefined {
+  if (!k) return undefined;
+  // Backend pode enviar "%muito_satisfeitos" ou "%_muito_satisfeitos"
+  // Tente ambas as chaves para compatibilidade.
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore - chave com símbolo %
+  const v1 = k["%muito_satisfeitos"] as number | undefined;
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore - chave com símbolo % e underscore
+  const v2 = k["%_muito_satisfeitos"] as number | undefined;
+  return v1 ?? v2;
+}
+
 export default function Satisfaction() {
   const [kpis, setKpis] = useState<SatisfactionKpis | null>(null);
   const [byMacro, setByMacro] = useState<ByMacroItem[]>([]);
@@ -95,6 +108,14 @@ export default function Satisfaction() {
       }
       if (deliveryStatus !== "all") params.delivery_status = deliveryStatus;
 
+      // Escolha dinâmica de frequência da série temporal baseada no intervalo selecionado
+      let freqParam: "D" | "W" | "M" = "M";
+      if (startDate && endDate) {
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const rangeDays = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / msPerDay));
+        if (rangeDays <= 45) freqParam = "D"; else if (rangeDays <= 180) freqParam = "W"; else freqParam = "M";
+      }
+
       const [kOverview, metaPlats, metaMacs, k, m, sc, ts, hm] = await Promise.all([
         getJson<{ total_pedidos: number; receita_total: number; ticket_medio: number; periodo: { min: string; max: string } | null }>(
           "/api/dashboard/overview/kpis"
@@ -104,7 +125,7 @@ export default function Satisfaction() {
         getJson<SatisfactionKpis>("/api/dashboard/satisfaction/kpis", params),
         getJson<ByMacroResponse>("/api/dashboard/satisfaction/by_macro_bairro", params),
         getJson<ScatterResponse>("/api/dashboard/satisfaction/scatter_time_vs_score", params),
-        getJson<TimeseriesResponse>("/api/dashboard/satisfaction/timeseries", { ...params, freq: "M" }),
+        getJson<TimeseriesResponse>("/api/dashboard/satisfaction/timeseries", { ...params, freq: freqParam }),
         getJson<HeatmapResponse>("/api/dashboard/satisfaction/heatmap_platform", params),
       ]);
 
@@ -171,7 +192,7 @@ export default function Satisfaction() {
       {kpis && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard title="Nível médio" value={formatScore(kpis.nivel_medio)} />
-          <KpiCard title="% muito satisfeitos" value={formatPercent(kpis["%_muito_satisfeitos"]) } />
+          <KpiCard title="% muito satisfeitos" value={formatPercent(getPercentMuitoSatisfeitos(kpis)) } />
         </div>
       )}
 
@@ -237,6 +258,26 @@ export default function Satisfaction() {
           <button onClick={fetchAll} disabled={loading} className={`px-3 py-2 rounded border ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}>
             {loading ? "Aplicando…" : "Aplicar filtros"}
           </button>
+          <button
+            onClick={() => {
+              setSelectedScore("all");
+              setSelectedPlatform("all");
+              setSelectedMacro("all");
+              setDeliveryStatus("all");
+              // Se temos período do dataset, inicializa datas com ele; senão limpa
+              if (datasetStart && datasetEnd) {
+                setStartDate(datasetStart.toISOString().substring(0, 10));
+                setEndDate(datasetEnd.toISOString().substring(0, 10));
+              } else {
+                setStartDate("");
+                setEndDate("");
+              }
+              fetchAll();
+            }}
+            className="px-3 py-2 rounded border bg-white text-gray-800"
+          >
+            Limpar tudo
+          </button>
         </div>
       </div>
 
@@ -284,18 +325,15 @@ export default function Satisfaction() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Satisfação média por plataforma</h3>
-          {filteredHeatmap && filteredHeatmap.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {filteredHeatmap.map((p) => (
-                <div key={p.platform} className="rounded p-3 text-white text-sm" style={{ backgroundColor: platformColor(p.avg_satisfacao) }}>
-                  <div className="font-medium">{p.platform}</div>
-                  <div className="opacity-90">{formatScore(p.avg_satisfacao)}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500">Sem dados.</div>
-          )}
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={[...filteredHeatmap].sort((a, b) => b.avg_satisfacao - a.avg_satisfacao)}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="platform" interval={0} angle={-20} textAnchor="end" height={60} />
+              <YAxis domain={[0, 5]} />
+              <Tooltip formatter={(v: any) => formatScore(Number(v))} />
+              <Bar dataKey="avg_satisfacao" fill="#16a34a" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
