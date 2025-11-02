@@ -138,8 +138,9 @@ export default function Ops() {
           );
         }
       })
-      .catch(() => {
+      .catch((e) => {
         if (!isMounted) return;
+        console.error("[Ops] Erro geral:", e);
         setError("Erro ao carregar dados do backend.");
       })
       .finally(() => {

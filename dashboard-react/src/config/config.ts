@@ -1,3 +1,5 @@
 export const config = { 
-  apiBaseUrl: window.location.origin === 'http://localhost:5173' ? 'http://localhost:8001' : 'URL CRIADA NO DEPLOY'
+  // Em dev usamos o proxy do Vite (vite.config.ts) que redireciona /api para localhost:8001
+  // Em produção, defina a URL completa da API aqui
+  apiBaseUrl: window.location.origin.startsWith('http://localhost') ? '' : ''
 }

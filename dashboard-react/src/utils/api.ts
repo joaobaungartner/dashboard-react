@@ -1,11 +1,15 @@
 import { config } from "../config/config";
 
-export const API_BASE_URL = config.apiBaseUrl ?? "http://localhost:8001";
+// Se apiBaseUrl estiver vazio, usa caminho relativo (proxy do Vite intercepta /api)
+export const API_BASE_URL = config.apiBaseUrl || '';
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
 export async function getJson<T>(path: string, params: QueryParams = {}): Promise<T> {
-  const url = new URL(`${API_BASE_URL}${path}`);
+  // Se API_BASE_URL estiver vazio, usa caminho relativo (proxy do Vite intercepta /api)
+  const fullPath = API_BASE_URL ? `${API_BASE_URL}${path}` : path;
+  
+  const url = new URL(fullPath, window.location.origin);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
   });
