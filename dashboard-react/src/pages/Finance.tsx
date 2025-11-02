@@ -158,7 +158,7 @@ export default function Finance() {
             receita_liquida: pickNumber(raw, ["receita_liquida"]),
             margem_total: pickNumber(raw, ["margem_total", "receita_liquida"]),
             ticket_medio: pickNumber(raw, ["ticket_medio"]),
-            pedidos: pickNumber(raw, ["pedidos"]),
+            pedidos: pickNumber(raw, ["total_pedidos", "pedidos"]),
           };
           console.log("[Finance] 📊 KPIs:", normalized);
           setKpis(normalized);
