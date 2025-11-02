@@ -158,10 +158,10 @@ export default function Ops() {
   }, [percentis]);
 
   return (
-    <div className="text-gray-700 space-y-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-2xl font-semibold">Desempenho Operacional</h2>
-        {loading && <span className="text-sm text-gray-500">Carregando…</span>}
+    <div className="text-gray-700 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+        <h2 className="text-xl sm:text-2xl font-semibold">Desempenho Operacional</h2>
+        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
       </div>
 
       {error && (
@@ -183,10 +183,10 @@ export default function Ops() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Pedidos por hora do dia</h3>
-          <ResponsiveContainer width="100%" height={260}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Pedidos por hora do dia</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={ordersByHour ?? []} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="hour" tick={{ fontSize: 12 }} label={{ value: "Hora", position: "insideBottom", dy: 6 }} />
@@ -199,7 +199,7 @@ export default function Ops() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Tempo de entrega por macro_bairro (p90)</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={percentisSorted} margin={{ left: 16, right: 16, top: 12, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="macro_bairro" tick={{ fontSize: 12 }} interval={0} angle={-20} height={50} dy={10} />
@@ -236,7 +236,7 @@ export default function Ops() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Tempo de entrega por dia da semana</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={useMemo(() => {
               if (!deliveryByWeekday) return [];
               return deliveryByWeekday.map((d) => ({
@@ -255,10 +255,10 @@ export default function Ops() {
       </div>
 
       {/* Seção adicional: gráficos de análise temporal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Tempo médio de entrega por hora</h3>
-          <ResponsiveContainer width="100%" height={260}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Tempo médio de entrega por hora</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={avgDeliveryByHour ?? []} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="hour" tick={{ fontSize: 12 }} label={{ value: "Hora", position: "insideBottom", dy: 6 }} />
@@ -271,7 +271,7 @@ export default function Ops() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Ranking: % de atrasos por plataforma</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={[...(lateRateByPlatform ?? [])].sort((a, b) => b.late_rate - a.late_rate)}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="platform" interval={0} angle={-20} textAnchor="end" height={60} />

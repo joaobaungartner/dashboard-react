@@ -319,10 +319,10 @@ export default function Finance() {
   const pieColors = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-2xl font-semibold">Análise Financeira</h2>
-        {loading && <span className="text-sm text-gray-500">Carregando…</span>}
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+        <h2 className="text-xl sm:text-2xl font-semibold">Análise Financeira</h2>
+        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
       </div>
 
       {datasetStart && datasetEnd && (
@@ -343,8 +343,8 @@ export default function Finance() {
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Início</label>
             <input 
@@ -394,11 +394,11 @@ export default function Finance() {
             </select>
           </div>
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-col sm:flex-row gap-2">
           <button 
             onClick={fetchAll} 
             disabled={loading} 
-            className={`px-3 py-2 rounded border ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}
+            className={`w-full sm:w-auto px-3 py-2 rounded border text-sm sm:text-base ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}
           >
             {loading ? "Aplicando…" : "Aplicar filtros"}
           </button>
@@ -416,17 +416,17 @@ export default function Finance() {
               }
               fetchAll();
             }}
-            className="px-3 py-2 rounded border bg-white text-gray-800"
+            className="w-full sm:w-auto px-3 py-2 rounded border bg-white text-gray-800 text-sm sm:text-base"
           >
             Limpar tudo
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Receita ao longo do tempo</h3>
-          <ResponsiveContainer width="100%" height={260}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita ao longo do tempo</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={timeseries.map(d => ({ ...d, date: parseDateString(d.date) }))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={(v) => new Intl.DateTimeFormat("pt-BR").format(v)} />
@@ -440,9 +440,9 @@ export default function Finance() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Receita por plataforma</h3>
-          <ResponsiveContainer width="100%" height={260}>
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por plataforma</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revenueByPlatform}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="platform" interval={0} angle={-20} textAnchor="end" height={60} />
@@ -461,9 +461,9 @@ export default function Finance() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Receita por modal</h3>
-          <ResponsiveContainer width="100%" height={260}>
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por modal</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revenueByClass}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="classe" interval={0} angle={-20} textAnchor="end" height={60} />
@@ -474,9 +474,9 @@ export default function Finance() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Receita por classe</h3>
-          <ResponsiveContainer width="100%" height={260}>
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por classe</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revenueByItemClass}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
@@ -493,9 +493,9 @@ export default function Finance() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Receita por macro bairro (Top 10)</h3>
-          <ResponsiveContainer width="100%" height={260}>
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por macro bairro (Top 10)</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={revenueByMacroBairro}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 

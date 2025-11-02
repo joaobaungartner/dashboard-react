@@ -175,10 +175,10 @@ export default function Satisfaction() {
   // Período absoluto via início/fim; dropdown de período removido conforme solicitação
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-2xl font-semibold">Satisfação do Cliente</h2>
-        {loading && <span className="text-sm text-gray-500">Carregando…</span>}
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+        <h2 className="text-xl sm:text-2xl font-semibold">Satisfação do Cliente</h2>
+        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
       </div>
 
       {datasetStart && datasetEnd && (
@@ -254,8 +254,8 @@ export default function Satisfaction() {
             </select>
           </div>
         </div>
-        <div className="mt-3 flex gap-2">
-          <button onClick={fetchAll} disabled={loading} className={`px-3 py-2 rounded border ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}>
+        <div className="mt-3 flex flex-col sm:flex-row gap-2">
+          <button onClick={fetchAll} disabled={loading} className={`w-full sm:w-auto px-3 py-2 rounded border text-sm sm:text-base ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}>
             {loading ? "Aplicando…" : "Aplicar filtros"}
           </button>
           <button
@@ -274,17 +274,17 @@ export default function Satisfaction() {
               }
               fetchAll();
             }}
-            className="px-3 py-2 rounded border bg-white text-gray-800"
+            className="w-full sm:w-auto px-3 py-2 rounded border bg-white text-gray-800 text-sm sm:text-base"
           >
             Limpar tudo
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Satisfação média por macro_bairro</h3>
-          <ResponsiveContainer width="100%" height={260}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Satisfação média por macro_bairro</h3>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={filteredByMacro}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="macro_bairro" interval={0} angle={-20} textAnchor="end" height={60} />
@@ -297,7 +297,7 @@ export default function Satisfaction() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Tempo de entrega × satisfação</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={240}>
             <ScatterChart margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
               <CartesianGrid />
               <XAxis type="number" dataKey="delivery_minutes" name="Entrega" unit=" min" />
@@ -312,7 +312,7 @@ export default function Satisfaction() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Série temporal da satisfação</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={filteredTimeseries.map((d) => ({ ...d, date: parseDateString(d.date) }))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={(v) => new Intl.DateTimeFormat("pt-BR").format(v)} />
@@ -325,7 +325,7 @@ export default function Satisfaction() {
 
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="font-semibold mb-3">Satisfação média por plataforma</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={[...filteredHeatmap].sort((a, b) => b.avg_satisfacao - a.avg_satisfacao)}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="platform" interval={0} angle={-20} textAnchor="end" height={60} />
