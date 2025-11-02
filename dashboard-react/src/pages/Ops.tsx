@@ -58,30 +58,81 @@ export default function Ops() {
     setError(null);
 
     Promise.allSettled([
-      getJson<KpisResponse>("/api/dashboard/ops/kpis"),
-      getJson<OrdersByHourResponse>("/api/dashboard/ops/orders_by_hour"),
-      getJson<PercentisResponse>("/api/dashboard/ops/percentis_by_macro"),
-      getJson<LateRateResponse>("/api/dashboard/ops/late_rate_by_macro"),
-      getJson<ScatterResponse>("/api/dashboard/ops/scatter_distance_vs_delivery"),
+      getJson<any>("/api/dashboard/ops/kpis"),
+      getJson<any>("/api/dashboard/ops/orders_by_hour"),
+      getJson<any>("/api/dashboard/ops/percentis_by_macro"),
+      getJson<any>("/api/dashboard/ops/late_rate_by_macro"),
+      getJson<any>("/api/dashboard/ops/scatter_distance_vs_delivery"),
     ])
       .then((res) => {
         if (!isMounted) return;
         const [k, orders, perc, late, sc] = res;
-        if (k.status === "fulfilled") setKpis(k.value);
-        if (orders.status === "fulfilled") setOrdersByHour(orders.value.data ?? []);
-        if (perc.status === "fulfilled") setPercentis(perc.value.data ?? []);
-        if (late.status === "fulfilled") setLateRate(late.value.data ?? []);
-        if (sc.status === "fulfilled") setScatter(sc.value.data ?? []);
+        
+        // KPIs
+        if (k.status === "fulfilled") {
+          const data = k.value?.data ?? k.value ?? {};
+          setKpis({
+            tempo_medio_preparo: data.tempo_medio_preparo ?? 0,
+            tempo_medio_entrega: data.tempo_medio_entrega ?? 0,
+            atraso_medio: data.atraso_medio ?? 0,
+            distancia_media: data.distancia_media ?? 0,
+            on_time_rate_pct: data.on_time_rate_pct ?? 0,
+          });
+        } else {
+          console.warn("[Ops] KPIs falhou:", k.reason);
+        }
 
-        const firstRejection = res.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-        if (firstRejection) {
-          setError(
-            "Não foi possível carregar todos os dados (verifique colunas/servidor)."
-          );
+        // Orders by hour
+        if (orders.status === "fulfilled") {
+          const arr = orders.value?.data ?? orders.value ?? [];
+          setOrdersByHour(Array.isArray(arr) ? arr : []);
+        } else {
+          console.warn("[Ops] Orders by hour falhou:", orders.reason);
+          setOrdersByHour([]);
+        }
+
+        // Percentis
+        if (perc.status === "fulfilled") {
+          const arr = perc.value?.data ?? perc.value ?? [];
+          setPercentis(Array.isArray(arr) ? arr : []);
+        } else {
+          console.warn("[Ops] Percentis falhou:", perc.reason);
+          setPercentis([]);
+        }
+
+        // Late rate
+        if (late.status === "fulfilled") {
+          const arr = late.value?.data ?? late.value ?? [];
+          setLateRate(Array.isArray(arr) ? arr : []);
+        } else {
+          console.warn("[Ops] Late rate falhou:", late.reason);
+          setLateRate([]);
+        }
+
+        // Scatter
+        if (sc.status === "fulfilled") {
+          const arr = sc.value?.data ?? sc.value ?? [];
+          setScatter(Array.isArray(arr) ? arr : []);
+        } else {
+          console.warn("[Ops] Scatter falhou:", sc.reason);
+          setScatter([]);
+        }
+
+        // Só mostra erro se TODAS as requisições falharem
+        const allFailed = res.every((r) => r.status === "rejected");
+        if (allFailed) {
+          setError("Não foi possível carregar os dados (verifique colunas/servidor).");
+        } else {
+          // Ainda mostra aviso se algumas falharem
+          const failedCount = res.filter((r) => r.status === "rejected").length;
+          if (failedCount > 0) {
+            console.warn(`[Ops] ${failedCount} endpoint(s) falharam, mas continuando com dados disponíveis.`);
+          }
         }
       })
-      .catch(() => {
+      .catch((e) => {
         if (!isMounted) return;
+        console.error("[Ops] Erro geral:", e);
         setError("Erro ao carregar dados do backend.");
       })
       .finally(() => {
