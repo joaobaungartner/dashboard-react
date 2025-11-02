@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getJson } from "../utils/api";
 import {
   XAxis,
@@ -23,7 +23,13 @@ type KPIOverview = {
   cancelados_pct?: number;
   pedidos_por_dia?: number;
   on_time_rate_pct?: number;
+  periodo?: { min: string; max: string };
 };
+
+function formatDateLabel(d?: Date | null) {
+  if (!d) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(d);
+}
 
 export default function Overview() {
   const [kpis, setKpis] = useState<KPIOverview | null>(null);
@@ -37,64 +43,132 @@ export default function Overview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
+  // Estados para período do dataset
+  const [datasetStart, setDatasetStart] = useState<Date | null>(null);
+  const [datasetEnd, setDatasetEnd] = useState<Date | null>(null);
+  
+  // Estados para meta dados (listas de opções)
+  const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
+  const [metaMacros, setMetaMacros] = useState<string[]>([]);
 
-        const results = await Promise.allSettled([
-          getJson<{ data: KPIOverview }>("/api/dashboard/overview/kpis"),
-          getJson<{ data: { platform: string; orders: number }[] }>("/api/dashboard/overview/by_platform"),
-          getJson<{ data: { status: string; count: number }[] }>("/api/dashboard/overview/status_distribution"),
-          getJson<{ data: { macro_bairro: string; avg_receita: number }[] }>("/api/dashboard/overview/macro_bairro_avg_receita"),
-          getJson<{ data: { date: string; receita_total: number; orders: number }[] }>("/api/dashboard/overview/timeseries_revenue_with_orders", { freq: "M" }),
-          getJson<{ data: { macro_bairro: string; orders: number }[] }>("/api/dashboard/overview/top_macro_bairros_by_orders", { top_n: 5 }),
-          getJson<{ data: { macro_bairro: string; value: number }[] }>("/api/dashboard/overview/macro_bairro_choropleth", { metric: "avg_receita" }),
-          getJson<{ tempo_medio_preparo: number; tempo_medio_entrega: number; atraso_medio: number; distancia_media: number; on_time_rate_pct: number } | { data: { tempo_medio_preparo: number; tempo_medio_entrega: number; atraso_medio: number; distancia_media: number; on_time_rate_pct: number } }>("/api/dashboard/ops/kpis"),
-        ]);
+  // Filtros
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
+  const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
 
-        const [k, p, st, m, mo, tm, ch, opsKpis] = results;
-        
-        if (k.status === "fulfilled") {
-          setKpis(k.value.data);
-          // Também tenta pegar on_time_rate_pct do kpis se disponível
-          if (k.value.data.on_time_rate_pct !== undefined) {
-            setOnTimeRate(k.value.data.on_time_rate_pct);
-          }
-        }
-        if (p.status === "fulfilled") setByPlatform(p.value.data ?? []);
-        if (st.status === "fulfilled") setByStatus(st.value.data ?? []);
-        if (m.status === "fulfilled") setMacroAvg(m.value.data ?? []);
-        if (mo.status === "fulfilled") setMonthlyRevOrders(mo.value.data ?? []);
-        if (tm.status === "fulfilled") setTopMacro((tm.value.data ?? []).slice(0, 5));
-        if (ch.status === "fulfilled") setChoropleth(ch.value.data ?? []);
-        if (opsKpis.status === "fulfilled") {
-          // O endpoint ops/kpis pode retornar direto ou dentro de data
-          const opsData = (opsKpis.value as any).data ?? opsKpis.value;
-          if (opsData?.on_time_rate_pct !== undefined && opsData.on_time_rate_pct !== null) {
-            // Se o valor vier como decimal (0.814), converte para porcentagem (81.4)
-            const rateValue = opsData.on_time_rate_pct;
-            const finalValue = rateValue > 1 ? rateValue : rateValue * 100;
-            console.log("[Overview] On-time rate recebido:", { raw: rateValue, final: finalValue });
-            setOnTimeRate(finalValue);
-          }
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao carregar dados");
-      } finally {
-        setLoading(false);
+  async function fetchAll() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Montar parâmetros de filtro
+      const params: Record<string, any> = {};
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (selectedPlatform !== "all") params.platform = [selectedPlatform];
+      if (selectedMacro !== "all") params.macro_bairro = [selectedMacro];
+
+      // Escolha dinâmica de frequência da série temporal baseada no intervalo selecionado
+      let freqParam: "D" | "W" | "M" = "M";
+      if (startDate && endDate) {
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const rangeDays = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / msPerDay));
+        if (rangeDays <= 45) freqParam = "D"; else if (rangeDays <= 180) freqParam = "W"; else freqParam = "M";
       }
+
+      const results = await Promise.allSettled([
+        // Meta dados (sem filtros)
+        getJson<{ data: KPIOverview }>("/api/dashboard/overview/kpis"),
+        getJson<{ data: string[] }>("/api/dashboard/meta/platforms"),
+        getJson<{ data: string[] }>("/api/dashboard/meta/macros"),
+        // Dados overview (com filtros)
+        getJson<{ data: KPIOverview }>("/api/dashboard/overview/kpis", params),
+        getJson<{ data: { platform: string; orders: number }[] }>("/api/dashboard/overview/by_platform", params),
+        getJson<{ data: { status: string; count: number }[] }>("/api/dashboard/overview/status_distribution", params),
+        getJson<{ data: { macro_bairro: string; avg_receita: number }[] }>("/api/dashboard/overview/macro_bairro_avg_receita", params),
+        getJson<{ data: { date: string; receita_total: number; orders: number }[] }>("/api/dashboard/overview/timeseries_revenue_with_orders", { ...params, freq: freqParam }),
+        getJson<{ data: { macro_bairro: string; orders: number }[] }>("/api/dashboard/overview/top_macro_bairros_by_orders", { ...params, top_n: 5 }),
+        getJson<{ data: { macro_bairro: string; value: number }[] }>("/api/dashboard/overview/macro_bairro_choropleth", { ...params, metric: "avg_receita" }),
+        getJson<{ tempo_medio_preparo: number; tempo_medio_entrega: number; atraso_medio: number; distancia_media: number; on_time_rate_pct: number } | { data: { tempo_medio_preparo: number; tempo_medio_entrega: number; atraso_medio: number; distancia_media: number; on_time_rate_pct: number } }>("/api/dashboard/ops/kpis"),
+      ]);
+
+      const [kOverview, metaPlats, metaMacs, k, p, st, m, mo, tm, ch, opsKpis] = results;
+      
+      // Definir intervalo do dataset a partir do overview.kpis.periodo
+      if (kOverview.status === "fulfilled" && kOverview.value && kOverview.value.data.periodo) {
+        const p = kOverview.value.data.periodo;
+        if (p?.min && p?.max) {
+          setDatasetStart(new Date(p.min));
+          setDatasetEnd(new Date(p.max));
+          // Inicializar inputs se vazios
+          if (!startDate) setStartDate(p.min.substring(0, 10));
+          if (!endDate) setEndDate(p.max.substring(0, 10));
+        }
+      }
+
+      // Meta dados
+      if (metaPlats.status === "fulfilled") {
+        setMetaPlatforms(metaPlats.value?.data ?? []);
+      }
+      if (metaMacs.status === "fulfilled") {
+        setMetaMacros(metaMacs.value?.data ?? []);
+      }
+      
+      if (k.status === "fulfilled") {
+        setKpis(k.value.data);
+        // Também tenta pegar on_time_rate_pct do kpis se disponível
+        if (k.value.data.on_time_rate_pct !== undefined) {
+          setOnTimeRate(k.value.data.on_time_rate_pct);
+        }
+      }
+      if (p.status === "fulfilled") setByPlatform(p.value.data ?? []);
+      if (st.status === "fulfilled") setByStatus(st.value.data ?? []);
+      if (m.status === "fulfilled") setMacroAvg(m.value.data ?? []);
+      if (mo.status === "fulfilled") setMonthlyRevOrders(mo.value.data ?? []);
+      if (tm.status === "fulfilled") setTopMacro((tm.value.data ?? []).slice(0, 5));
+      if (ch.status === "fulfilled") setChoropleth(ch.value.data ?? []);
+      if (opsKpis.status === "fulfilled") {
+        // O endpoint ops/kpis pode retornar direto ou dentro de data
+        const opsData = (opsKpis.value as any).data ?? opsKpis.value;
+        if (opsData?.on_time_rate_pct !== undefined && opsData.on_time_rate_pct !== null) {
+          // Se o valor vier como decimal (0.814), converte para porcentagem (81.4)
+          const rateValue = opsData.on_time_rate_pct;
+          const finalValue = rateValue > 1 ? rateValue : rateValue * 100;
+          setOnTimeRate(finalValue);
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao carregar dados");
+    } finally {
+      setLoading(false);
     }
-    load();
+  }
+
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const platformList = useMemo(() => metaPlatforms, [metaPlatforms]);
+  const macroList = useMemo(() => metaMacros, [metaMacros]);
 
   const colors = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
   return (
     <div className="space-y-6">
-      {loading && <p className="text-gray-600">Carregando…</p>}
-      {error && <p className="text-red-600">{error}</p>}
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-2xl font-semibold">Visão Geral</h2>
+        {loading && <span className="text-sm text-gray-500">Carregando…</span>}
+      </div>
+
+      {datasetStart && datasetEnd && (
+        <div className="text-sm text-gray-600">
+          Período dos dados: <span className="font-medium">{formatDateLabel(datasetStart)}</span> — <span className="font-medium">{formatDateLabel(datasetEnd)}</span>
+        </div>
+      )}
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">{error}</div>}
 
       {kpis && (
         <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${kpis.cancelados_pct !== undefined || kpis.pedidos_por_dia !== undefined ? 5 : 3} gap-4`}>
@@ -109,6 +183,87 @@ export default function Overview() {
           )}
         </div>
       )}
+
+      {/* Filtros */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Início</label>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="w-full border rounded px-2 py-2" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Fim</label>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="w-full border rounded px-2 py-2" 
+            />
+          </div>
+
+          {/* Plataformas (dropdown) */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Plataforma</label>
+            <select 
+              value={selectedPlatform} 
+              onChange={(e) => setSelectedPlatform(e.target.value)} 
+              className="w-full border rounded px-2 py-2"
+            >
+              <option value="all">Todas</option>
+              {platformList.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Macro-bairros (dropdown) */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Macro-bairro</label>
+            <select 
+              value={selectedMacro} 
+              onChange={(e) => setSelectedMacro(e.target.value)} 
+              className="w-full border rounded px-2 py-2"
+            >
+              <option value="all">Todos</option>
+              {macroList.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button 
+            onClick={fetchAll} 
+            disabled={loading} 
+            className={`px-3 py-2 rounded border ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}
+          >
+            {loading ? "Aplicando…" : "Aplicar filtros"}
+          </button>
+          <button
+            onClick={() => {
+              setSelectedPlatform("all");
+              setSelectedMacro("all");
+              // Se temos período do dataset, inicializa datas com ele; senão limpa
+              if (datasetStart && datasetEnd) {
+                setStartDate(datasetStart.toISOString().substring(0, 10));
+                setEndDate(datasetEnd.toISOString().substring(0, 10));
+              } else {
+                setStartDate("");
+                setEndDate("");
+              }
+              fetchAll();
+            }}
+            className="px-3 py-2 rounded border bg-white text-gray-800"
+          >
+            Limpar tudo
+          </button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-4">
