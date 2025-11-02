@@ -1,6 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { getJson, parseDateString } from "../utils/api";
 import {
+  PageContainer,
+  HeaderContainer,
+  Title,
+  LoadingText,
+  DateRangeText,
+  Alert,
+  GridContainer,
+  KpiCard as StyledKpiCard,
+  FilterContainer,
+  FilterGrid,
+  FormGroup,
+  Label,
+  Input,
+  Select,
+  ButtonGroup,
+  Button,
+  TwoColumnGrid,
+  Card,
+  Subtitle,
+} from "../styles/styled-components";
+import {
   ResponsiveContainer,
   LineChart,
   Line,
@@ -82,12 +103,19 @@ export default function Finance() {
 
   async function fetchAll() {
     // Usar timestamp único para evitar conflitos de timer
-    const timerId = `[Finance] ⏱️ Tempo total ${Date.now()}`;
-    const reqTimerId = `[Finance] 🌐 Requisições paralelas ${Date.now()}`;
+    const timestamp = Date.now();
+    const timerId = `[Finance] ⏱️ Tempo total ${timestamp}`;
+    const reqTimerId = `[Finance] 🌐 Requisições paralelas ${timestamp}`;
     
     try {
       console.group("[Finance] 🚀 Iniciando carregamento de dados");
-      console.time(timerId);
+      
+      // Verificar se o timer já existe antes de criar
+      try {
+        console.time(timerId);
+      } catch {
+        // Timer já existe, continuar
+      }
       
       setLoading(true);
       setError(null);
@@ -111,7 +139,11 @@ export default function Finance() {
         if (rangeDays <= 45) freqParam = "D"; else if (rangeDays <= 180) freqParam = "W"; else freqParam = "M";
       }
 
-      console.time(reqTimerId);
+      try {
+        console.time(reqTimerId);
+      } catch {
+        // Timer já existe, continuar
+      }
       
       const results = await Promise.allSettled([
         // Meta dados (sem filtros)
@@ -127,7 +159,12 @@ export default function Finance() {
         getJson<any>("/api/dashboard/finance/revenue_by_macro_bairro", { ...params, top_n: 10 }),
         getJson<any>("/api/dashboard/finance/top_clients", { ...params, top_n: 10 }),
       ]);
-      console.timeEnd(reqTimerId);
+      
+      try {
+        console.timeEnd(reqTimerId);
+      } catch {
+        // Timer não existe, ignorar
+      }
       
       const [kOverview, metaPlats, metaMacs, k, ts, rp, rc, ric, rmb, tc] = results;
 
@@ -299,11 +336,15 @@ export default function Finance() {
       } finally {
         // Garantir que o timer principal e o grupo sejam sempre finalizados, mesmo em caso de erro
         try {
-          if (timerId) console.timeEnd(timerId);
-        } catch {}
+          console.timeEnd(timerId);
+        } catch {
+          // Timer não existe ou já foi finalizado, ignorar
+        }
         try {
           console.groupEnd();
-        } catch {}
+        } catch {
+          // Grupo não existe ou já foi finalizado, ignorar
+        }
         setLoading(false);
       }
     }
@@ -319,94 +360,97 @@ export default function Finance() {
   const pieColors = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-        <h2 className="text-xl sm:text-2xl font-semibold">Análise Financeira</h2>
-        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
-      </div>
+    <PageContainer>
+      <HeaderContainer>
+        <Title>Análise Financeira</Title>
+        {loading && <LoadingText>Carregando…</LoadingText>}
+      </HeaderContainer>
 
       {datasetStart && datasetEnd && (
-        <div className="text-sm text-gray-600">
-          Período dos dados: <span className="font-medium">{formatDateLabel(datasetStart)}</span> — <span className="font-medium">{formatDateLabel(datasetEnd)}</span>
-        </div>
+        <DateRangeText>
+          Período dos dados: <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetStart)}</span> — <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetEnd)}</span>
+        </DateRangeText>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       {kpis && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard title="Receita total" value={formatCurrency(kpis.receita_total)} />
-          <KpiCard title="Receita líquida" value={formatCurrency(kpis.receita_liquida ?? kpis.margem_total)} />
-          <KpiCard title="Ticket médio" value={formatCurrency(kpis.ticket_medio)} />
-          <KpiCard title="Pedidos" value={formatNumber(kpis.pedidos)} />
-        </div>
+        <GridContainer $cols={4}>
+          <StyledKpiCard>
+            <p>Receita total</p>
+            <p>{formatCurrency(kpis.receita_total)}</p>
+          </StyledKpiCard>
+          <StyledKpiCard>
+            <p>Receita líquida</p>
+            <p>{formatCurrency(kpis.receita_liquida ?? kpis.margem_total)}</p>
+          </StyledKpiCard>
+          <StyledKpiCard>
+            <p>Ticket médio</p>
+            <p>{formatCurrency(kpis.ticket_medio)}</p>
+          </StyledKpiCard>
+          <StyledKpiCard>
+            <p>Pedidos</p>
+            <p>{formatNumber(kpis.pedidos)}</p>
+          </StyledKpiCard>
+        </GridContainer>
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Início</label>
-            <input 
+      <FilterContainer>
+        <FilterGrid>
+          <FormGroup>
+            <Label>Início</Label>
+            <Input 
               type="date" 
               value={startDate} 
               onChange={(e) => setStartDate(e.target.value)} 
-              className="w-full border rounded px-2 py-2" 
             />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Fim</label>
-            <input 
+          </FormGroup>
+          <FormGroup>
+            <Label>Fim</Label>
+            <Input 
               type="date" 
               value={endDate} 
               onChange={(e) => setEndDate(e.target.value)} 
-              className="w-full border rounded px-2 py-2" 
             />
-          </div>
-
-          {/* Plataformas (dropdown) */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Plataforma</label>
-            <select 
+          </FormGroup>
+          <FormGroup>
+            <Label>Plataforma</Label>
+            <Select 
               value={selectedPlatform} 
-              onChange={(e) => setSelectedPlatform(e.target.value)} 
-              className="w-full border rounded px-2 py-2"
+              onChange={(e) => setSelectedPlatform(e.target.value)}
             >
               <option value="all">Todas</option>
               {platformList.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
-            </select>
-          </div>
-
-          {/* Macro-bairros (dropdown) */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Macro-bairro</label>
-            <select 
+            </Select>
+          </FormGroup>
+          <FormGroup>
+            <Label>Macro-bairro</Label>
+            <Select 
               value={selectedMacro} 
-              onChange={(e) => setSelectedMacro(e.target.value)} 
-              className="w-full border rounded px-2 py-2"
+              onChange={(e) => setSelectedMacro(e.target.value)}
             >
               <option value="all">Todos</option>
               {macroList.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-col sm:flex-row gap-2">
-          <button 
+            </Select>
+          </FormGroup>
+        </FilterGrid>
+        <ButtonGroup>
+          <Button 
             onClick={fetchAll} 
             disabled={loading} 
-            className={`w-full sm:w-auto px-3 py-2 rounded border text-sm sm:text-base ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}
+            variant="primary"
           >
             {loading ? "Aplicando…" : "Aplicar filtros"}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setSelectedPlatform("all");
               setSelectedMacro("all");
-              // Se temos período do dataset, inicializa datas com ele; senão limpa
               if (datasetStart && datasetEnd) {
                 setStartDate(datasetStart.toISOString().substring(0, 10));
                 setEndDate(datasetEnd.toISOString().substring(0, 10));
@@ -416,16 +460,16 @@ export default function Finance() {
               }
               fetchAll();
             }}
-            className="w-full sm:w-auto px-3 py-2 rounded border bg-white text-gray-800 text-sm sm:text-base"
+            variant="secondary"
           >
             Limpar tudo
-          </button>
-        </div>
-      </div>
+          </Button>
+        </ButtonGroup>
+      </FilterContainer>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita ao longo do tempo</h3>
+      <TwoColumnGrid>
+        <Card>
+          <Subtitle>Receita ao longo do tempo</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={timeseries.map(d => ({ ...d, date: parseDateString(d.date) }))}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -438,10 +482,10 @@ export default function Finance() {
               <Line type="monotone" dataKey="receita_total" stroke="#2563eb" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por plataforma</h3>
+        <Card>
+          <Subtitle>Receita por plataforma</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revenueByPlatform}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -459,10 +503,10 @@ export default function Finance() {
               <Bar dataKey="total" fill="#16a34a" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por modal</h3>
+        <Card>
+          <Subtitle>Receita por modal</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revenueByClass}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -472,10 +516,10 @@ export default function Finance() {
               <Bar dataKey="revenue" fill="#f59e0b" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por classe</h3>
+        <Card>
+          <Subtitle>Receita por classe</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revenueByItemClass}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -491,10 +535,10 @@ export default function Finance() {
               <Bar dataKey="total_brl" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita por macro bairro (Top 10)</h3>
+        <Card>
+          <Subtitle>Receita por macro bairro (Top 10)</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={revenueByMacroBairro}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -515,18 +559,9 @@ export default function Finance() {
               <Bar dataKey="receita_liquida" name="Receita Líquida" fill="#82ca9d" />
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KpiCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
+        </Card>
+      </TwoColumnGrid>
+    </PageContainer>
   );
 }
 

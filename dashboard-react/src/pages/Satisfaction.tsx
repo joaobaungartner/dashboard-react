@@ -15,6 +15,27 @@ import {
   ZAxis,
   Legend,
 } from "recharts";
+import {
+  PageContainer,
+  HeaderContainer,
+  Title,
+  LoadingText,
+  DateRangeText,
+  Alert,
+  GridContainer,
+  KpiCard as StyledKpiCard,
+  FilterContainer,
+  FilterGrid,
+  FormGroup,
+  Label,
+  Input,
+  Select,
+  ButtonGroup,
+  Button,
+  TwoColumnGrid,
+  Card,
+  Subtitle,
+} from "../styles/styled-components";
 
 export type SatisfactionKpis = {
   nivel_medio: number;
@@ -175,90 +196,92 @@ export default function Satisfaction() {
   // Período absoluto via início/fim; dropdown de período removido conforme solicitação
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-        <h2 className="text-xl sm:text-2xl font-semibold">Satisfação do Cliente</h2>
-        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
-      </div>
+    <PageContainer>
+      <HeaderContainer>
+        <Title>Satisfação do Cliente</Title>
+        {loading && <LoadingText>Carregando…</LoadingText>}
+      </HeaderContainer>
 
       {datasetStart && datasetEnd && (
-        <div className="text-sm text-gray-600">
-          Período dos dados: <span className="font-medium">{formatDateLabel(datasetStart)}</span> — <span className="font-medium">{formatDateLabel(datasetEnd)}</span>
-        </div>
+        <DateRangeText>
+          Período dos dados: <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetStart)}</span> — <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetEnd)}</span>
+        </DateRangeText>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       {kpis && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard title="Nível médio" value={formatScore(kpis.nivel_medio)} />
-          <KpiCard title="% muito satisfeitos" value={formatPercent(getPercentMuitoSatisfeitos(kpis)) } />
-        </div>
+        <GridContainer $cols={4}>
+          <StyledKpiCard>
+            <p>Nível médio</p>
+            <p>{formatScore(kpis.nivel_medio)}</p>
+          </StyledKpiCard>
+          <StyledKpiCard>
+            <p>% muito satisfeitos</p>
+            <p>{formatPercent(getPercentMuitoSatisfeitos(kpis))}</p>
+          </StyledKpiCard>
+        </GridContainer>
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Nota de satisfação</label>
-            <select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))} className="w-full border rounded px-2 py-2">
+      <FilterContainer>
+        <FilterGrid>
+          <FormGroup>
+            <Label>Nota de satisfação</Label>
+            <Select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))}>
               <option value="all">Todas</option>
               <option value="1">1</option>
               <option value="2">2</option>
               <option value="3">3</option>
               <option value="4">4</option>
               <option value="5">5</option>
-            </select>
-          </div>
+            </Select>
+          </FormGroup>
 
-          
+          <FormGroup>
+            <Label>Início</Label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </FormGroup>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Início</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border rounded px-2 py-2" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Fim</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full border rounded px-2 py-2" />
-          </div>
+          <FormGroup>
+            <Label>Fim</Label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </FormGroup>
 
-          {/* Status de entrega */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Entrega</label>
-            <select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as any)} className="w-full border rounded px-2 py-2">
+          <FormGroup>
+            <Label>Entrega</Label>
+            <Select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as any)}>
               <option value="all">Todas</option>
               <option value="atrasado">Atrasados</option>
               <option value="no_prazo">No prazo</option>
-            </select>
-          </div>
+            </Select>
+          </FormGroup>
 
-          {/* Plataformas (dropdown) */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Plataforma</label>
-            <select value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)} className="w-full border rounded px-2 py-2">
+          <FormGroup>
+            <Label>Plataforma</Label>
+            <Select value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)}>
               <option value="all">Todas</option>
               {platformList.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </FormGroup>
 
-          {/* Macro-bairros (dropdown) */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Macro-bairro</label>
-            <select value={selectedMacro} onChange={(e) => setSelectedMacro(e.target.value)} className="w-full border rounded px-2 py-2">
+          <FormGroup>
+            <Label>Macro-bairro</Label>
+            <Select value={selectedMacro} onChange={(e) => setSelectedMacro(e.target.value)}>
               <option value="all">Todos</option>
               {macroList.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-col sm:flex-row gap-2">
-          <button onClick={fetchAll} disabled={loading} className={`w-full sm:w-auto px-3 py-2 rounded border text-sm sm:text-base ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}>
+            </Select>
+          </FormGroup>
+        </FilterGrid>
+        <ButtonGroup>
+          <Button onClick={fetchAll} disabled={loading} variant="primary">
             {loading ? "Aplicando…" : "Aplicar filtros"}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setSelectedScore("all");
               setSelectedPlatform("all");
@@ -274,16 +297,16 @@ export default function Satisfaction() {
               }
               fetchAll();
             }}
-            className="w-full sm:w-auto px-3 py-2 rounded border bg-white text-gray-800 text-sm sm:text-base"
+            variant="secondary"
           >
             Limpar tudo
-          </button>
-        </div>
-      </div>
+          </Button>
+        </ButtonGroup>
+      </FilterContainer>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Satisfação média por macro_bairro</h3>
+      <TwoColumnGrid>
+        <Card>
+          <Subtitle>Satisfação média por macro_bairro</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={filteredByMacro}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -293,10 +316,10 @@ export default function Satisfaction() {
               <Bar dataKey="avg_satisfacao" fill="#16a34a" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Tempo de entrega × satisfação</h3>
+        <Card>
+          <Subtitle>Tempo de entrega × satisfação</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <ScatterChart margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
               <CartesianGrid />
@@ -308,10 +331,10 @@ export default function Satisfaction() {
               <Scatter name="Pedidos" data={filteredScatter} fill="#2563eb" />
             </ScatterChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Série temporal da satisfação</h3>
+        <Card>
+          <Subtitle>Série temporal da satisfação</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={filteredTimeseries.map((d) => ({ ...d, date: parseDateString(d.date) }))}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -321,10 +344,10 @@ export default function Satisfaction() {
               <Line type="monotone" dataKey="avg_satisfacao" stroke="#0ea5e9" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Satisfação média por plataforma</h3>
+        <Card>
+          <Subtitle>Satisfação média por plataforma</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={[...filteredHeatmap].sort((a, b) => b.avg_satisfacao - a.avg_satisfacao)}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -334,18 +357,9 @@ export default function Satisfaction() {
               <Bar dataKey="avg_satisfacao" fill="#16a34a" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KpiCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
+        </Card>
+      </TwoColumnGrid>
+    </PageContainer>
   );
 }
 

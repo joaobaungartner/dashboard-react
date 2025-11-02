@@ -15,6 +15,27 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import {
+  PageContainer,
+  HeaderContainer,
+  Title,
+  LoadingText,
+  DateRangeText,
+  Alert,
+  GridContainer,
+  KpiCard as StyledKpiCard,
+  FilterContainer,
+  FilterGrid,
+  FormGroup,
+  Label,
+  Input,
+  Select,
+  ButtonGroup,
+  Button,
+  TwoColumnGrid,
+  Card,
+  Subtitle,
+} from "../styles/styled-components";
 
 type KpisResponse = {
   tempo_medio_preparo: number;
@@ -91,6 +112,11 @@ function heatmapColor(value: number, min: number, max: number) {
   return `rgb(${r}, ${g}, 80)`;
 }
 
+function formatDateLabel(d?: Date | null) {
+  if (!d) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(d);
+}
+
 export default function Ops() {
   const [kpis, setKpis] = useState<KpisResponse | null>(null);
   const [ordersByHour, setOrdersByHour] = useState<OrdersByHourItem[] | null>(null);
@@ -104,53 +130,107 @@ export default function Ops() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+  // Estados para período do dataset
+  const [datasetStart, setDatasetStart] = useState<Date | null>(null);
+  const [datasetEnd, setDatasetEnd] = useState<Date | null>(null);
+  
+  // Estados para meta dados (listas de opções)
+  const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
+  const [metaMacros, setMetaMacros] = useState<string[]>([]);
+
+  // Filtros
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
+  const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
+  const [deliveryStatus, setDeliveryStatus] = useState<"all" | "atrasado" | "no_prazo">("all");
+  const [thresholdMin, setThresholdMin] = useState<string>("");
+
+  async function fetchAll() {
     let isMounted = true;
     setLoading(true);
     setError(null);
 
-    Promise.allSettled([
-      getJson<KpisResponse>("/api/dashboard/ops/kpis"),
-      getJson<OrdersByHourResponse>("/api/dashboard/ops/orders_by_hour"),
-      getJson<PercentisResponse>("/api/dashboard/ops/percentis_by_macro"),
-      getJson<LateRateResponse>("/api/dashboard/ops/late_rate_by_macro"),
-      getJson<DeliveryByWeekdayResponse>("/api/dashboard/ops/delivery_by_weekday"),
-      getJson<AvgDeliveryByHourResponse>("/api/dashboard/ops/avg_delivery_by_hour"),
-      getJson<HeatmapHourWeekdayResponse>("/api/dashboard/ops/heatmap_hour_weekday"),
-      getJson<LateRateByPlatformResponse>("/api/dashboard/ops/late_rate_by_platform"),
-    ])
-      .then((res) => {
-        if (!isMounted) return;
-        const [k, orders, perc, late, weekday, hour, heatmap, platform] = res;
-        if (k.status === "fulfilled") setKpis(k.value);
-        if (orders.status === "fulfilled") setOrdersByHour(orders.value.data ?? []);
-        if (perc.status === "fulfilled") setPercentis(perc.value.data ?? []);
-        if (late.status === "fulfilled") setLateRate(late.value.data ?? []);
-        if (weekday.status === "fulfilled") setDeliveryByWeekday(weekday.value.data ?? []);
-        if (hour.status === "fulfilled") setAvgDeliveryByHour(hour.value.data ?? []);
-        if (heatmap.status === "fulfilled") setHeatmapHourWeekday(heatmap.value.data ?? []);
-        if (platform.status === "fulfilled") setLateRateByPlatform(platform.value.data ?? []);
+    try {
+      // Montar parâmetros de filtro
+      const params: Record<string, any> = {};
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (selectedPlatform !== "all") params.platform = [selectedPlatform];
+      if (selectedMacro !== "all") params.macro_bairro = [selectedMacro];
+      if (deliveryStatus !== "all") params.delivery_status = deliveryStatus;
+      if (thresholdMin) {
+        const threshold = parseFloat(thresholdMin);
+        if (!Number.isNaN(threshold)) params.threshold_min = threshold;
+      }
 
-        const firstRejection = res.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-        if (firstRejection) {
-          setError(
-            "Não foi possível carregar todos os dados (verifique colunas/servidor)."
-          );
+      // Buscar meta dados primeiro (sem filtros)
+      const [kOverview, metaPlats, metaMacs, ...opsResults] = await Promise.allSettled([
+        getJson<any>("/api/dashboard/overview/kpis"),
+        getJson<{ data: string[] }>("/api/dashboard/meta/platforms"),
+        getJson<{ data: string[] }>("/api/dashboard/meta/macros"),
+        getJson<KpisResponse>("/api/dashboard/ops/kpis", params),
+        getJson<OrdersByHourResponse>("/api/dashboard/ops/orders_by_hour", params),
+        getJson<PercentisResponse>("/api/dashboard/ops/percentis_by_macro", params),
+        getJson<LateRateResponse>("/api/dashboard/ops/late_rate_by_macro", params),
+        getJson<DeliveryByWeekdayResponse>("/api/dashboard/ops/delivery_by_weekday", params),
+        getJson<AvgDeliveryByHourResponse>("/api/dashboard/ops/avg_delivery_by_hour", params),
+        getJson<HeatmapHourWeekdayResponse>("/api/dashboard/ops/heatmap_hour_weekday", params),
+        getJson<LateRateByPlatformResponse>("/api/dashboard/ops/late_rate_by_platform", params),
+      ]);
+
+      if (!isMounted) return;
+
+      // Definir intervalo do dataset a partir do overview.kpis.periodo
+      if (kOverview.status === "fulfilled" && kOverview.value && (kOverview.value as any).periodo) {
+        const p = (kOverview.value as any).periodo as { min: string; max: string };
+        if (p?.min && p?.max) {
+          setDatasetStart(new Date(p.min));
+          setDatasetEnd(new Date(p.max));
+          // Inicializar inputs se vazios
+          if (!startDate) setStartDate(p.min.substring(0, 10));
+          if (!endDate) setEndDate(p.max.substring(0, 10));
         }
-      })
-      .catch((e) => {
-        if (!isMounted) return;
-        console.error("[Ops] Erro geral:", e);
-        setError("Erro ao carregar dados do backend.");
-      })
-      .finally(() => {
-        if (!isMounted) return;
-        setLoading(false);
-      });
+      }
 
-    return () => {
-      isMounted = false;
-    };
+      // Meta dados
+      if (metaPlats.status === "fulfilled") {
+        setMetaPlatforms(metaPlats.value?.data ?? []);
+      }
+      if (metaMacs.status === "fulfilled") {
+        setMetaMacros(metaMacs.value?.data ?? []);
+      }
+
+      // Processar resultados operacionais
+      const [k, orders, perc, late, weekday, hour, heatmap, platform] = opsResults;
+      if (k.status === "fulfilled") setKpis(k.value);
+      if (orders.status === "fulfilled") setOrdersByHour(orders.value.data ?? []);
+      if (perc.status === "fulfilled") setPercentis(perc.value.data ?? []);
+      if (late.status === "fulfilled") setLateRate(late.value.data ?? []);
+      if (weekday.status === "fulfilled") setDeliveryByWeekday(weekday.value.data ?? []);
+      if (hour.status === "fulfilled") setAvgDeliveryByHour(hour.value.data ?? []);
+      if (heatmap.status === "fulfilled") setHeatmapHourWeekday(heatmap.value.data ?? []);
+      if (platform.status === "fulfilled") setLateRateByPlatform(platform.value.data ?? []);
+
+      const firstRejection = opsResults.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+      if (firstRejection) {
+        setError(
+          "Não foi possível carregar todos os dados (verifique colunas/servidor)."
+        );
+      }
+    } catch (e) {
+      if (!isMounted) return;
+      console.error("[Ops] Erro geral:", e);
+      setError("Erro ao carregar dados do backend.");
+    } finally {
+      if (!isMounted) return;
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const percentisSorted = useMemo(() => {
@@ -158,34 +238,131 @@ export default function Ops() {
   }, [percentis]);
 
   return (
-    <div className="text-gray-700 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-        <h2 className="text-xl sm:text-2xl font-semibold">Desempenho Operacional</h2>
-        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
-      </div>
+    <PageContainer>
+      <HeaderContainer>
+        <Title>Desempenho Operacional</Title>
+        {loading && <LoadingText>Carregando…</LoadingText>}
+      </HeaderContainer>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">
-          {error}
-        </div>
+      {datasetStart && datasetEnd && (
+        <DateRangeText>
+          Período dos dados: <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetStart)}</span> — <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetEnd)}</span>
+        </DateRangeText>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <KpiCard title="Tempo médio de preparo" value={formatMinutes(kpis?.tempo_medio_preparo)} />
-        <KpiCard title="Tempo médio de entrega" value={formatMinutes(kpis?.tempo_medio_entrega)} />
-        <KpiCard title="Atraso médio" value={formatMinutes(kpis?.atraso_medio)} />
-        <KpiCard title="Distância média" value={kpis ? `${kpis.distancia_media.toFixed(1)} km` : "-"} />
-        <KpiCard
-          title="Entregas no prazo"
-          value={kpis?.on_time_rate_pct !== undefined && !Number.isNaN(kpis?.on_time_rate_pct)
-            ? `${kpis.on_time_rate_pct.toFixed(1)}%`
-            : "-"}
-        />
-      </div>
+      {error && <Alert type="error">{error}</Alert>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Pedidos por hora do dia</h3>
+      <GridContainer $cols={5}>
+        <StyledKpiCard>
+          <p>Tempo médio de preparo</p>
+          <p>{formatMinutes(kpis?.tempo_medio_preparo)}</p>
+        </StyledKpiCard>
+        <StyledKpiCard>
+          <p>Tempo médio de entrega</p>
+          <p>{formatMinutes(kpis?.tempo_medio_entrega)}</p>
+        </StyledKpiCard>
+        <StyledKpiCard>
+          <p>Atraso médio</p>
+          <p>{formatMinutes(kpis?.atraso_medio)}</p>
+        </StyledKpiCard>
+        <StyledKpiCard>
+          <p>Distância média</p>
+          <p>{kpis ? `${kpis.distancia_media.toFixed(1)} km` : "-"}</p>
+        </StyledKpiCard>
+        <StyledKpiCard>
+          <p>Entregas no prazo</p>
+          <p>
+            {kpis?.on_time_rate_pct !== undefined && !Number.isNaN(kpis?.on_time_rate_pct)
+              ? `${kpis.on_time_rate_pct.toFixed(1)}%`
+              : "-"}
+          </p>
+        </StyledKpiCard>
+      </GridContainer>
+
+      {/* Filtros */}
+      <FilterContainer>
+        <FilterGrid>
+          <FormGroup>
+            <Label>Início</Label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Fim</Label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Plataforma</Label>
+            <Select value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)}>
+              <option value="all">Todas</option>
+              {metaPlatforms.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </Select>
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Macro-bairro</Label>
+            <Select value={selectedMacro} onChange={(e) => setSelectedMacro(e.target.value)}>
+              <option value="all">Todos</option>
+              {metaMacros.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </Select>
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Status de entrega</Label>
+            <Select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as any)}>
+              <option value="all">Todas</option>
+              <option value="atrasado">Atrasados</option>
+              <option value="no_prazo">No prazo</option>
+            </Select>
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Tolerância mínima (min)</Label>
+            <Input 
+              type="number" 
+              step="0.1"
+              min="0"
+              placeholder="Ex: 30"
+              value={thresholdMin} 
+              onChange={(e) => setThresholdMin(e.target.value)} 
+            />
+          </FormGroup>
+        </FilterGrid>
+        <ButtonGroup>
+          <Button onClick={fetchAll} disabled={loading} variant="primary">
+            {loading ? "Aplicando…" : "Aplicar filtros"}
+          </Button>
+          <Button
+            onClick={() => {
+              setSelectedPlatform("all");
+              setSelectedMacro("all");
+              setDeliveryStatus("all");
+              setThresholdMin("");
+              // Se temos período do dataset, inicializa datas com ele; senão limpa
+              if (datasetStart && datasetEnd) {
+                setStartDate(datasetStart.toISOString().substring(0, 10));
+                setEndDate(datasetEnd.toISOString().substring(0, 10));
+              } else {
+                setStartDate("");
+                setEndDate("");
+              }
+              fetchAll();
+            }}
+            variant="secondary"
+          >
+            Limpar tudo
+          </Button>
+        </ButtonGroup>
+      </FilterContainer>
+
+      <TwoColumnGrid>
+        <Card>
+          <Subtitle>Pedidos por hora do dia</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={ordersByHour ?? []} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -195,10 +372,10 @@ export default function Ops() {
               <Line type="monotone" dataKey="orders" stroke="#7f1d1d" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Tempo de entrega por macro_bairro (p90)</h3>
+        <Card>
+          <Subtitle>Tempo de entrega por macro_bairro (p90)</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={percentisSorted} margin={{ left: 16, right: 16, top: 12, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -218,11 +395,13 @@ export default function Ops() {
               <Bar dataKey="p90" fill="#0ea5e9" />
             </BarChart>
           </ResponsiveContainer>
-          <div className="text-xs text-gray-500 mt-1">Tooltip inclui média, p50, p75, p90 e total (quando disponível).</div>
-        </div>
+          <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
+            Tooltip inclui média, p50, p75, p90 e total (quando disponível).
+          </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">% de atrasos por macro_bairro</h3>
+        <Card>
+          <Subtitle>% de atrasos por macro_bairro</Subtitle>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={(lateRate ?? []).slice().sort((a,b)=> b.late_rate - a.late_rate)} layout="vertical" margin={{ left: 24, right: 16, top: 12, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -232,10 +411,10 @@ export default function Ops() {
               <Bar dataKey="late_rate" fill="#ef4444" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Tempo de entrega por dia da semana</h3>
+        <Card>
+          <Subtitle>Tempo de entrega por dia da semana</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={useMemo(() => {
               if (!deliveryByWeekday) return [];
@@ -251,13 +430,13 @@ export default function Ops() {
               <Bar dataKey="median" name="Mediana" fill="#8b5cf6" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      </div>
+        </Card>
+      </TwoColumnGrid>
 
       {/* Seção adicional: gráficos de análise temporal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Tempo médio de entrega por hora</h3>
+      <TwoColumnGrid>
+        <Card>
+          <Subtitle>Tempo médio de entrega por hora</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={avgDeliveryByHour ?? []} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -267,10 +446,10 @@ export default function Ops() {
               <Line type="monotone" dataKey="avg_delivery_minutes" stroke="#2563eb" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">Ranking: % de atrasos por plataforma</h3>
+        <Card>
+          <Subtitle>Ranking: % de atrasos por plataforma</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={[...(lateRateByPlatform ?? [])].sort((a, b) => b.late_rate - a.late_rate)}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -280,17 +459,8 @@ export default function Ops() {
               <Bar dataKey="late_rate" fill="#ef4444" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KpiCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="text-sm text-gray-500">{title}</div>
-      <div className="text-2xl font-semibold text-gray-900 mt-1">{value}</div>
-    </div>
+        </Card>
+      </TwoColumnGrid>
+    </PageContainer>
   );
 }

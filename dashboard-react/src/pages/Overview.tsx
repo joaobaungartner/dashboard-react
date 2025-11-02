@@ -1,6 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { getJson } from "../utils/api";
 import {
+  PageContainer,
+  HeaderContainer,
+  Title,
+  LoadingText,
+  DateRangeText,
+  Alert,
+  GridContainer,
+  KpiCard as StyledKpiCard,
+  FilterContainer,
+  FilterGrid,
+  FormGroup,
+  Label,
+  Input,
+  Select,
+  ButtonGroup,
+  Button,
+  TwoColumnGrid,
+  Card,
+  Subtitle,
+} from "../styles/styled-components";
+import {
   XAxis,
   YAxis,
   CartesianGrid,
@@ -155,100 +176,108 @@ export default function Overview() {
 
   const colors = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
+  const kpiCols = kpis?.cancelados_pct !== undefined || kpis?.pedidos_por_dia !== undefined ? 5 : 3;
+
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-        <h2 className="text-xl sm:text-2xl font-semibold">Visão Geral</h2>
-        {loading && <span className="text-xs sm:text-sm text-gray-500">Carregando…</span>}
-      </div>
+    <PageContainer>
+      <HeaderContainer>
+        <Title>Visão Geral</Title>
+        {loading && <LoadingText>Carregando…</LoadingText>}
+      </HeaderContainer>
 
       {datasetStart && datasetEnd && (
-        <div className="text-sm text-gray-600">
-          Período dos dados: <span className="font-medium">{formatDateLabel(datasetStart)}</span> — <span className="font-medium">{formatDateLabel(datasetEnd)}</span>
-        </div>
+        <DateRangeText>
+          Período dos dados: <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetStart)}</span> — <span style={{ fontWeight: 500 }}>{formatDateLabel(datasetEnd)}</span>
+        </DateRangeText>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       {kpis && (
-        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${kpis.cancelados_pct !== undefined || kpis.pedidos_por_dia !== undefined ? 5 : 3} gap-4`}>
-          <KpiCard title="Total de pedidos" value={kpis.total_pedidos.toLocaleString()} />
-          <KpiCard title="Receita total" value={kpis.receita_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} />
-          <KpiCard title="Ticket médio" value={kpis.ticket_medio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} />
+        <GridContainer $cols={kpiCols}>
+          <StyledKpiCard>
+            <p>Total de pedidos</p>
+            <p>{kpis.total_pedidos.toLocaleString()}</p>
+          </StyledKpiCard>
+          <StyledKpiCard>
+            <p>Receita total</p>
+            <p>{kpis.receita_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+          </StyledKpiCard>
+          <StyledKpiCard>
+            <p>Ticket médio</p>
+            <p>{kpis.ticket_medio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+          </StyledKpiCard>
           {kpis.cancelados_pct !== undefined && (
-            <KpiCard title="Pedidos cancelados" value={`${(kpis.cancelados_pct > 1 ? kpis.cancelados_pct : kpis.cancelados_pct * 100).toFixed(1)}%`} />
+            <StyledKpiCard>
+              <p>Pedidos cancelados</p>
+              <p>{`${(kpis.cancelados_pct > 1 ? kpis.cancelados_pct : kpis.cancelados_pct * 100).toFixed(1)}%`}</p>
+            </StyledKpiCard>
           )}
           {kpis.pedidos_por_dia !== undefined && (
-            <KpiCard title="Pedidos por dia (média)" value={kpis.pedidos_por_dia.toLocaleString(undefined, { maximumFractionDigits: 1 })} />
+            <StyledKpiCard>
+              <p>Pedidos por dia (média)</p>
+              <p>{kpis.pedidos_por_dia.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+            </StyledKpiCard>
           )}
-        </div>
+        </GridContainer>
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Início</label>
-            <input 
+      <FilterContainer>
+        <FilterGrid>
+          <FormGroup>
+            <Label>Início</Label>
+            <Input 
               type="date" 
               value={startDate} 
               onChange={(e) => setStartDate(e.target.value)} 
-              className="w-full border rounded px-2 py-2" 
             />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Fim</label>
-            <input 
+          </FormGroup>
+          <FormGroup>
+            <Label>Fim</Label>
+            <Input 
               type="date" 
               value={endDate} 
               onChange={(e) => setEndDate(e.target.value)} 
-              className="w-full border rounded px-2 py-2" 
             />
-          </div>
-
-          {/* Plataformas (dropdown) */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Plataforma</label>
-            <select 
+          </FormGroup>
+          <FormGroup>
+            <Label>Plataforma</Label>
+            <Select 
               value={selectedPlatform} 
-              onChange={(e) => setSelectedPlatform(e.target.value)} 
-              className="w-full border rounded px-2 py-2"
+              onChange={(e) => setSelectedPlatform(e.target.value)}
             >
               <option value="all">Todas</option>
               {platformList.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
-            </select>
-          </div>
-
-          {/* Macro-bairros (dropdown) */}
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Macro-bairro</label>
-            <select 
+            </Select>
+          </FormGroup>
+          <FormGroup>
+            <Label>Macro-bairro</Label>
+            <Select 
               value={selectedMacro} 
-              onChange={(e) => setSelectedMacro(e.target.value)} 
-              className="w-full border rounded px-2 py-2"
+              onChange={(e) => setSelectedMacro(e.target.value)}
             >
               <option value="all">Todos</option>
               {macroList.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-col sm:flex-row gap-2">
-          <button 
+            </Select>
+          </FormGroup>
+        </FilterGrid>
+        <ButtonGroup>
+          <Button 
             onClick={fetchAll} 
             disabled={loading} 
-            className={`w-full sm:w-auto px-3 py-2 rounded border text-sm sm:text-base ${loading ? "bg-gray-300 text-gray-600" : "bg-gray-900 text-white"}`}
+            variant="primary"
           >
             {loading ? "Aplicando…" : "Aplicar filtros"}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setSelectedPlatform("all");
               setSelectedMacro("all");
-              // Se temos período do dataset, inicializa datas com ele; senão limpa
               if (datasetStart && datasetEnd) {
                 setStartDate(datasetStart.toISOString().substring(0, 10));
                 setEndDate(datasetEnd.toISOString().substring(0, 10));
@@ -258,16 +287,16 @@ export default function Overview() {
               }
               fetchAll();
             }}
-            className="w-full sm:w-auto px-3 py-2 rounded border bg-white text-gray-800 text-sm sm:text-base"
+            variant="secondary"
           >
             Limpar tudo
-          </button>
-        </div>
-      </div>
+          </Button>
+        </ButtonGroup>
+      </FilterContainer>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Receita total por mês (linha dupla)</h3>
+      <TwoColumnGrid>
+        <Card>
+          <Subtitle>Receita total por mês (linha dupla)</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={monthlyRevOrders}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -280,10 +309,10 @@ export default function Overview() {
               <Line yAxisId="right" dataKey="receita_total" name="Receita" stroke="#16a34a" />
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Top 5 macro bairros por pedidos</h3>
+        <Card>
+          <Subtitle>Top 5 macro bairros por pedidos</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={topMacro}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -293,10 +322,10 @@ export default function Overview() {
               <Bar dataKey="orders" fill="#0ea5e9" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Pedidos por plataforma</h3>
+        <Card>
+          <Subtitle>Pedidos por plataforma</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={byPlatform}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -306,10 +335,10 @@ export default function Overview() {
               <Bar dataKey="orders" fill="#16a34a" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Status dos pedidos</h3>
+        <Card>
+          <Subtitle>Status dos pedidos</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie dataKey="count" nameKey="status" data={byStatus} outerRadius={90}>
@@ -321,10 +350,10 @@ export default function Overview() {
               <Legend />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-          <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Macro bairro × receita média</h3>
+        <Card>
+          <Subtitle>Macro bairro × receita média</Subtitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={macroAvg}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -334,27 +363,18 @@ export default function Overview() {
               <Bar dataKey="avg_receita" fill="#f59e0b" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
         {onTimeRate !== null && onTimeRate !== undefined && (
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-semibold mb-3">% de entregas no prazo</h3>
-            <div className="flex items-center justify-center h-64">
+          <Card>
+            <Subtitle>% de entregas no prazo</Subtitle>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16rem' }}>
               <GaugeChart value={onTimeRate} />
             </div>
-          </div>
+          </Card>
         )}
-      </div>
-    </div>
-  );
-}
-
-function KpiCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
+      </TwoColumnGrid>
+    </PageContainer>
   );
 }
 
