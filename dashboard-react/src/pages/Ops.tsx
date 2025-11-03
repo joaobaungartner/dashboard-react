@@ -130,21 +130,15 @@ export default function Ops() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Estados para período do dataset
   const [datasetStart, setDatasetStart] = useState<Date | null>(null);
   const [datasetEnd, setDatasetEnd] = useState<Date | null>(null);
-  
-  // Estados para meta dados (listas de opções)
   const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
   const [metaMacros, setMetaMacros] = useState<string[]>([]);
-
-  // Filtros
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
   const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
-  const [deliveryStatus, setDeliveryStatus] = useState<"all" | "atrasado" | "no_prazo">("all");
-  const [thresholdMin, setThresholdMin] = useState<string>("");
+  const [selectedScore, setSelectedScore] = useState<number | "all">("all");
 
   async function fetchAll() {
     let isMounted = true;
@@ -152,19 +146,19 @@ export default function Ops() {
     setError(null);
 
     try {
-      // Montar parâmetros de filtro
       const params: Record<string, any> = {};
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (selectedPlatform !== "all") params.platform = [selectedPlatform];
       if (selectedMacro !== "all") params.macro_bairro = [selectedMacro];
-      if (deliveryStatus !== "all") params.delivery_status = deliveryStatus;
-      if (thresholdMin) {
-        const threshold = parseFloat(thresholdMin);
-        if (!Number.isNaN(threshold)) params.threshold_min = threshold;
+      if (selectedScore !== "all") {
+        const scoreNum = Number(selectedScore);
+        if (!Number.isNaN(scoreNum)) {
+          params.score_min = scoreNum;
+          params.score_max = scoreNum;
+        }
       }
 
-      // Buscar meta dados primeiro (sem filtros)
       const [kOverview, metaPlats, metaMacs, ...opsResults] = await Promise.allSettled([
         getJson<any>("/api/dashboard/overview/kpis"),
         getJson<{ data: string[] }>("/api/dashboard/meta/platforms"),
@@ -181,19 +175,16 @@ export default function Ops() {
 
       if (!isMounted) return;
 
-      // Definir intervalo do dataset a partir do overview.kpis.periodo
       if (kOverview.status === "fulfilled" && kOverview.value && (kOverview.value as any).periodo) {
         const p = (kOverview.value as any).periodo as { min: string; max: string };
         if (p?.min && p?.max) {
           setDatasetStart(new Date(p.min));
           setDatasetEnd(new Date(p.max));
-          // Inicializar inputs se vazios
           if (!startDate) setStartDate(p.min.substring(0, 10));
           if (!endDate) setEndDate(p.max.substring(0, 10));
         }
       }
 
-      // Meta dados
       if (metaPlats.status === "fulfilled") {
         setMetaPlatforms(metaPlats.value?.data ?? []);
       }
@@ -201,7 +192,6 @@ export default function Ops() {
         setMetaMacros(metaMacs.value?.data ?? []);
       }
 
-      // Processar resultados operacionais
       const [k, orders, perc, late, weekday, hour, heatmap, platform] = opsResults;
       if (k.status === "fulfilled") setKpis(k.value);
       if (orders.status === "fulfilled") setOrdersByHour(orders.value.data ?? []);
@@ -220,7 +210,6 @@ export default function Ops() {
       }
     } catch (e) {
       if (!isMounted) return;
-      console.error("[Ops] Erro geral:", e);
       setError("Erro ao carregar dados do backend.");
     } finally {
       if (!isMounted) return;
@@ -230,7 +219,6 @@ export default function Ops() {
 
   useEffect(() => {
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const percentisSorted = useMemo(() => {
@@ -279,7 +267,6 @@ export default function Ops() {
         </StyledKpiCard>
       </GridContainer>
 
-      {/* Filtros */}
       <FilterContainer>
         <FilterGrid>
           <FormGroup>
@@ -311,26 +298,16 @@ export default function Ops() {
               ))}
             </Select>
           </FormGroup>
-
           <FormGroup>
-            <Label>Status de entrega</Label>
-            <Select value={deliveryStatus} onChange={(e) => setDeliveryStatus(e.target.value as any)}>
+            <Label>Nota de satisfação</Label>
+            <Select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))}>
               <option value="all">Todas</option>
-              <option value="atrasado">Atrasados</option>
-              <option value="no_prazo">No prazo</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
             </Select>
-          </FormGroup>
-
-          <FormGroup>
-            <Label>Tolerância mínima (min)</Label>
-            <Input 
-              type="number" 
-              step="0.1"
-              min="0"
-              placeholder="Ex: 30"
-              value={thresholdMin} 
-              onChange={(e) => setThresholdMin(e.target.value)} 
-            />
           </FormGroup>
         </FilterGrid>
         <ButtonGroup>
@@ -341,9 +318,7 @@ export default function Ops() {
             onClick={() => {
               setSelectedPlatform("all");
               setSelectedMacro("all");
-              setDeliveryStatus("all");
-              setThresholdMin("");
-              // Se temos período do dataset, inicializa datas com ele; senão limpa
+              setSelectedScore("all");
               if (datasetStart && datasetEnd) {
                 setStartDate(datasetStart.toISOString().substring(0, 10));
                 setEndDate(datasetEnd.toISOString().substring(0, 10));
@@ -433,7 +408,6 @@ export default function Ops() {
         </Card>
       </TwoColumnGrid>
 
-      {/* Seção adicional: gráficos de análise temporal */}
       <TwoColumnGrid>
         <Card>
           <Subtitle>Tempo médio de entrega por hora</Subtitle>

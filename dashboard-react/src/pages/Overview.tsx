@@ -64,33 +64,34 @@ export default function Overview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para período do dataset
   const [datasetStart, setDatasetStart] = useState<Date | null>(null);
   const [datasetEnd, setDatasetEnd] = useState<Date | null>(null);
-  
-  // Estados para meta dados (listas de opções)
   const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
   const [metaMacros, setMetaMacros] = useState<string[]>([]);
-
-  // Filtros
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
   const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
+  const [selectedScore, setSelectedScore] = useState<number | "all">("all");
 
   async function fetchAll() {
     try {
       setLoading(true);
       setError(null);
 
-      // Montar parâmetros de filtro
       const params: Record<string, any> = {};
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (selectedPlatform !== "all") params.platform = [selectedPlatform];
       if (selectedMacro !== "all") params.macro_bairro = [selectedMacro];
+      if (selectedScore !== "all") {
+        const scoreNum = Number(selectedScore);
+        if (!Number.isNaN(scoreNum)) {
+          params.score_min = scoreNum;
+          params.score_max = scoreNum;
+        }
+      }
 
-      // Escolha dinâmica de frequência da série temporal baseada no intervalo selecionado
       let freqParam: "D" | "W" | "M" = "M";
       if (startDate && endDate) {
         const msPerDay = 24 * 60 * 60 * 1000;
@@ -99,11 +100,9 @@ export default function Overview() {
       }
 
       const results = await Promise.allSettled([
-        // Meta dados (sem filtros)
         getJson<{ data: KPIOverview }>("/api/dashboard/overview/kpis"),
         getJson<{ data: string[] }>("/api/dashboard/meta/platforms"),
         getJson<{ data: string[] }>("/api/dashboard/meta/macros"),
-        // Dados overview (com filtros)
         getJson<{ data: KPIOverview }>("/api/dashboard/overview/kpis", params),
         getJson<{ data: { platform: string; orders: number }[] }>("/api/dashboard/overview/by_platform", params),
         getJson<{ data: { status: string; count: number }[] }>("/api/dashboard/overview/status_distribution", params),
@@ -116,19 +115,16 @@ export default function Overview() {
 
       const [kOverview, metaPlats, metaMacs, k, p, st, m, mo, tm, ch, opsKpis] = results;
       
-      // Definir intervalo do dataset a partir do overview.kpis.periodo
       if (kOverview.status === "fulfilled" && kOverview.value && kOverview.value.data.periodo) {
         const p = kOverview.value.data.periodo;
         if (p?.min && p?.max) {
           setDatasetStart(new Date(p.min));
           setDatasetEnd(new Date(p.max));
-          // Inicializar inputs se vazios
           if (!startDate) setStartDate(p.min.substring(0, 10));
           if (!endDate) setEndDate(p.max.substring(0, 10));
         }
       }
 
-      // Meta dados
       if (metaPlats.status === "fulfilled") {
         setMetaPlatforms(metaPlats.value?.data ?? []);
       }
@@ -138,7 +134,6 @@ export default function Overview() {
       
       if (k.status === "fulfilled") {
         setKpis(k.value.data);
-        // Também tenta pegar on_time_rate_pct do kpis se disponível
         if (k.value.data.on_time_rate_pct !== undefined) {
           setOnTimeRate(k.value.data.on_time_rate_pct);
         }
@@ -150,10 +145,8 @@ export default function Overview() {
       if (tm.status === "fulfilled") setTopMacro((tm.value.data ?? []).slice(0, 5));
       if (ch.status === "fulfilled") setChoropleth(ch.value.data ?? []);
       if (opsKpis.status === "fulfilled") {
-        // O endpoint ops/kpis pode retornar direto ou dentro de data
         const opsData = (opsKpis.value as any).data ?? opsKpis.value;
         if (opsData?.on_time_rate_pct !== undefined && opsData.on_time_rate_pct !== null) {
-          // Se o valor vier como decimal (0.814), converte para porcentagem (81.4)
           const rateValue = opsData.on_time_rate_pct;
           const finalValue = rateValue > 1 ? rateValue : rateValue * 100;
           setOnTimeRate(finalValue);
@@ -168,7 +161,6 @@ export default function Overview() {
 
   useEffect(() => {
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const platformList = useMemo(() => metaPlatforms, [metaPlatforms]);
@@ -222,7 +214,6 @@ export default function Overview() {
         </GridContainer>
       )}
 
-      {/* Filtros */}
       <FilterContainer>
         <FilterGrid>
           <FormGroup>
@@ -255,14 +246,25 @@ export default function Overview() {
           </FormGroup>
           <FormGroup>
             <Label>Macro-bairro</Label>
-            <Select 
-              value={selectedMacro} 
+            <Select
+              value={selectedMacro}
               onChange={(e) => setSelectedMacro(e.target.value)}
             >
               <option value="all">Todos</option>
               {macroList.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
+            </Select>
+          </FormGroup>
+          <FormGroup>
+            <Label>Nota de satisfação</Label>
+            <Select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))}>
+              <option value="all">Todas</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
             </Select>
           </FormGroup>
         </FilterGrid>
@@ -278,6 +280,7 @@ export default function Overview() {
             onClick={() => {
               setSelectedPlatform("all");
               setSelectedMacro("all");
+              setSelectedScore("all");
               if (datasetStart && datasetEnd) {
                 setStartDate(datasetStart.toISOString().substring(0, 10));
                 setEndDate(datasetEnd.toISOString().substring(0, 10));
@@ -379,20 +382,15 @@ export default function Overview() {
 }
 
 function GaugeChart({ value }: { value: number }) {
-  // Garantir que o valor está entre 0 e 100
   const normalizedValue = Math.max(0, Math.min(100, value));
   const percentage = normalizedValue / 100;
-  
-  // Calcular ângulos para o arco (180 graus = semicírculo, de 0° a 180°)
-  // Começamos em 0° (esquerda) e vamos até 180° (direita) baseado na porcentagem
   const startAngle = 0;
   const endAngle = 180 * percentage;
   
-  // Cor baseada no valor
   const getColor = () => {
-    if (percentage >= 0.8) return "#16a34a"; // Verde para >= 80%
-    if (percentage >= 0.6) return "#f59e0b"; // Amarelo para >= 60%
-    return "#ef4444"; // Vermelho para < 60%
+    if (percentage >= 0.8) return "#16a34a";
+    if (percentage >= 0.6) return "#f59e0b";
+    return "#ef4444";
   };
   
   const color = getColor();
@@ -400,20 +398,13 @@ function GaugeChart({ value }: { value: number }) {
   const radius = 80;
   const centerX = size / 2;
   const centerY = size / 2;
-  
-  // Converter ângulos para radianos (SVG usa sistema onde 0° é à direita, precisamos ajustar)
   const toRadians = (angle: number) => (angle * Math.PI) / 180;
-  
-  // Calcular pontos do arco (ajustar para que 0° fique à esquerda em vez de à direita)
   const getX = (angle: number) => centerX + radius * Math.cos(toRadians(angle - 90));
   const getY = (angle: number) => centerY + radius * Math.sin(toRadians(angle - 90));
-  
   const startX = getX(startAngle);
   const startY = getY(startAngle);
   const endX = getX(endAngle);
   const endY = getY(endAngle);
-  
-  // Flag para arco grande (mais de 180 graus) - não aplicável aqui já que max é 180°
   const largeArcFlag = 0;
   
   const pathData = `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`;
@@ -421,7 +412,6 @@ function GaugeChart({ value }: { value: number }) {
   return (
     <div className="relative">
       <svg width={size} height={size / 2 + 20} className="overflow-visible">
-        {/* Arco de fundo (cinza) */}
         <path
           d={`M ${getX(0)} ${getY(0)} A ${radius} ${radius} 0 0 1 ${getX(180)} ${getY(180)}`}
           fill="none"
@@ -429,7 +419,6 @@ function GaugeChart({ value }: { value: number }) {
           strokeWidth="20"
           strokeLinecap="round"
         />
-        {/* Arco do valor */}
         <path
           d={pathData}
           fill="none"
@@ -437,7 +426,6 @@ function GaugeChart({ value }: { value: number }) {
           strokeWidth="20"
           strokeLinecap="round"
         />
-        {/* Texto do valor */}
         <text
           x={centerX}
           y={centerY - 10}
@@ -448,7 +436,6 @@ function GaugeChart({ value }: { value: number }) {
         >
           {normalizedValue.toFixed(1)}%
         </text>
-        {/* Label */}
         <text
           x={centerX}
           y={centerY + 30}
