@@ -65,9 +65,8 @@ function formatPercent(n?: number) {
 }
 
 function platformColor(value: number) {
-  // 3 (baixo) -> 5 (alto)
   const clamped = Math.max(3, Math.min(5, value));
-  const t = (clamped - 3) / 2; // 0..1
+  const t = (clamped - 3) / 2;
   const r = Math.round(240 - 120 * t);
   const g = Math.round(70 + 150 * t);
   const b = Math.round(90 + 40 * t);
@@ -81,13 +80,7 @@ function formatDateLabel(d?: Date | null) {
 
 function getPercentMuitoSatisfeitos(k: SatisfactionKpis | null): number | undefined {
   if (!k) return undefined;
-  // Backend pode enviar "%muito_satisfeitos" ou "%_muito_satisfeitos"
-  // Tente ambas as chaves para compatibilidade.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore - chave com símbolo %
   const v1 = k["%muito_satisfeitos"] as number | undefined;
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore - chave com símbolo % e underscore
   const v2 = k["%_muito_satisfeitos"] as number | undefined;
   return v1 ?? v2;
 }
@@ -104,8 +97,6 @@ export default function Satisfaction() {
   const [metaMacros, setMetaMacros] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filtros amigáveis (UI) - filtros aplicados no frontend
   const [selectedScore, setSelectedScore] = useState<number | "all">("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -129,7 +120,6 @@ export default function Satisfaction() {
       }
       if (deliveryStatus !== "all") params.delivery_status = deliveryStatus;
 
-      // Escolha dinâmica de frequência da série temporal baseada no intervalo selecionado
       let freqParam: "D" | "W" | "M" = "M";
       if (startDate && endDate) {
         const msPerDay = 24 * 60 * 60 * 1000;
@@ -150,13 +140,11 @@ export default function Satisfaction() {
         getJson<HeatmapResponse>("/api/dashboard/satisfaction/heatmap_platform", params),
       ]);
 
-      // Definir intervalo do dataset a partir do overview.kpis.periodo
       if (kOverview && (kOverview as any).periodo) {
         const p = (kOverview as any).periodo as { min: string; max: string };
         if (p?.min && p?.max) {
           setDatasetStart(new Date(p.min));
           setDatasetEnd(new Date(p.max));
-          // Inicializar inputs se vazios
           if (!startDate) setStartDate(p.min.substring(0, 10));
           if (!endDate) setEndDate(p.max.substring(0, 10));
         }
@@ -179,7 +167,6 @@ export default function Satisfaction() {
 
   useEffect(() => {
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const platformList = useMemo(() => metaPlatforms, [metaPlatforms]);
@@ -192,8 +179,6 @@ export default function Satisfaction() {
   const filteredByMacro = useMemo(() => byMacro, [byMacro]);
 
   const filteredHeatmap = useMemo(() => heatmap, [heatmap]);
-
-  // Período absoluto via início/fim; dropdown de período removido conforme solicitação
 
   return (
     <PageContainer>
@@ -223,7 +208,6 @@ export default function Satisfaction() {
         </GridContainer>
       )}
 
-      {/* Filtros */}
       <FilterContainer>
         <FilterGrid>
           <FormGroup>
@@ -287,7 +271,6 @@ export default function Satisfaction() {
               setSelectedPlatform("all");
               setSelectedMacro("all");
               setDeliveryStatus("all");
-              // Se temos período do dataset, inicializa datas com ele; senão limpa
               if (datasetStart && datasetEnd) {
                 setStartDate(datasetStart.toISOString().substring(0, 10));
                 setEndDate(datasetEnd.toISOString().substring(0, 10));

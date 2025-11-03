@@ -1,6 +1,5 @@
 import styled from "styled-components";
 
-// Containers
 export const PageContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -52,7 +51,6 @@ export const TwoColumnGrid = styled.div`
   }
 `;
 
-// Cards
 export const Card = styled.div`
   background: white;
   border-radius: 0.5rem;
@@ -87,7 +85,6 @@ export const KpiCard = styled.div`
   }
 `;
 
-// Buttons
 export const Button = styled.button<{ variant?: "primary" | "secondary" | "danger"; disabled?: boolean }>`
   padding: 0.5rem 0.75rem;
   border-radius: 0.25rem;
@@ -139,7 +136,6 @@ export const Button = styled.button<{ variant?: "primary" | "secondary" | "dange
   }}
 `;
 
-// Form Elements
 export const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
@@ -182,7 +178,6 @@ export const Select = styled.select`
   }
 `;
 
-// Filter Section
 export const FilterContainer = styled.div`
   background: white;
   border-radius: 0.5rem;
@@ -219,7 +214,6 @@ export const ButtonGroup = styled.div`
   }
 `;
 
-// Sidebar
 export const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 16rem;
   background: white;
@@ -380,7 +374,6 @@ export const CloseButton = styled.button`
   }
 `;
 
-// Alerts
 export const Alert = styled.div<{ type?: "error" | "warning" | "info" }>`
   padding: 0.75rem;
   border-radius: 0.25rem;
@@ -407,7 +400,6 @@ export const Alert = styled.div<{ type?: "error" | "warning" | "info" }>`
   }}
 `;
 
-// Typography
 export const Title = styled.h2`
   font-size: 1.25rem;
   font-weight: 600;
@@ -455,7 +447,6 @@ export const DateRangeText = styled.div`
   color: #4b5563;
 `;
 
-// Layout
 export const HeaderContainer = styled.div`
   display: flex;
   flex-direction: column;

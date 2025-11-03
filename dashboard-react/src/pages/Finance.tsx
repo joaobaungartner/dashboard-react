@@ -87,51 +87,34 @@ export default function Finance() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para período do dataset
   const [datasetStart, setDatasetStart] = useState<Date | null>(null);
   const [datasetEnd, setDatasetEnd] = useState<Date | null>(null);
-  
-  // Estados para meta dados (listas de opções)
   const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
   const [metaMacros, setMetaMacros] = useState<string[]>([]);
-
-  // Filtros
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | "all">("all");
   const [selectedMacro, setSelectedMacro] = useState<string | "all">("all");
+  const [selectedScore, setSelectedScore] = useState<number | "all">("all");
 
   async function fetchAll() {
-    // Usar timestamp único para evitar conflitos de timer
-    const timestamp = Date.now();
-    const timerId = `[Finance] ⏱️ Tempo total ${timestamp}`;
-    const reqTimerId = `[Finance] 🌐 Requisições paralelas ${timestamp}`;
-    
     try {
-      console.group("[Finance] 🚀 Iniciando carregamento de dados");
-      
-      // Verificar se o timer já existe antes de criar
-      try {
-        console.time(timerId);
-      } catch {
-        // Timer já existe, continuar
-      }
-      
       setLoading(true);
       setError(null);
 
-      // Montar parâmetros de filtro
       const params: Record<string, any> = {};
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (selectedPlatform !== "all") params.platform = [selectedPlatform];
       if (selectedMacro !== "all") params.macro_bairro = [selectedMacro];
-
-      if (Object.keys(params).length > 0) {
-        console.log("[Finance] 📋 Parâmetros:", params);
+      if (selectedScore !== "all") {
+        const scoreNum = Number(selectedScore);
+        if (!Number.isNaN(scoreNum)) {
+          params.score_min = scoreNum;
+          params.score_max = scoreNum;
+        }
       }
 
-      // Escolha dinâmica de frequência da série temporal baseada no intervalo selecionado
       let freqParam: "D" | "W" | "M" = "M";
       if (startDate && endDate) {
         const msPerDay = 24 * 60 * 60 * 1000;
@@ -139,18 +122,10 @@ export default function Finance() {
         if (rangeDays <= 45) freqParam = "D"; else if (rangeDays <= 180) freqParam = "W"; else freqParam = "M";
       }
 
-      try {
-        console.time(reqTimerId);
-      } catch {
-        // Timer já existe, continuar
-      }
-      
       const results = await Promise.allSettled([
-        // Meta dados (sem filtros)
         getJson<any>("/api/dashboard/overview/kpis"),
         getJson<{ data: string[] }>("/api/dashboard/meta/platforms"),
         getJson<{ data: string[] }>("/api/dashboard/meta/macros"),
-        // Dados financeiros (com filtros)
         getJson<any>("/api/dashboard/finance/kpis", params),
         getJson<any>("/api/dashboard/finance/timeseries_revenue", { ...params, freq: freqParam }),
         getJson<any>("/api/dashboard/finance/revenue_by_platform", params),
@@ -159,28 +134,19 @@ export default function Finance() {
         getJson<any>("/api/dashboard/finance/revenue_by_macro_bairro", { ...params, top_n: 10 }),
         getJson<any>("/api/dashboard/finance/top_clients", { ...params, top_n: 10 }),
       ]);
-      
-      try {
-        console.timeEnd(reqTimerId);
-      } catch {
-        // Timer não existe, ignorar
-      }
-      
+
       const [kOverview, metaPlats, metaMacs, k, ts, rp, rc, ric, rmb, tc] = results;
 
-        // Definir intervalo do dataset a partir do overview.kpis.periodo
         if (kOverview.status === "fulfilled" && kOverview.value && (kOverview.value as any).periodo) {
           const p = (kOverview.value as any).periodo as { min: string; max: string };
           if (p?.min && p?.max) {
             setDatasetStart(new Date(p.min));
             setDatasetEnd(new Date(p.max));
-            // Inicializar inputs se vazios
             if (!startDate) setStartDate(p.min.substring(0, 10));
             if (!endDate) setEndDate(p.max.substring(0, 10));
           }
         }
 
-        // Meta dados
         if (metaPlats.status === "fulfilled") {
           setMetaPlatforms(metaPlats.value?.data ?? []);
         }
@@ -197,11 +163,9 @@ export default function Finance() {
             ticket_medio: pickNumber(raw, ["ticket_medio"]),
             pedidos: pickNumber(raw, ["total_pedidos", "pedidos"]),
           };
-          console.log("[Finance] 📊 KPIs:", normalized);
           setKpis(normalized);
         } else {
           setKpis(null);
-          console.warn("[Finance] ❌ KPIs falhou:", k.reason);
         }
 
         if (ts.status === "fulfilled") {
@@ -210,17 +174,14 @@ export default function Finance() {
             date: row.date,
             receita_total: pickNumber(row, ["net", "gross"]),
           }));
-          console.log("[Finance] 📈 Timeseries:", norm.length, "pontos");
           setTimeseries(norm);
         } else {
           setTimeseries([]);
-          console.warn("[Finance] ❌ Timeseries falhou:", ts.reason);
         }
 
         if (rp.status === "fulfilled") {
           const arr = unwrap<any[]>(rp.value) ?? [];
           const norm = arr.map((row, idx) => {
-            // Tenta encontrar a chave de plataforma (primeira chave que não é numérica conhecida)
             const excludedKeys = [
               "total", "total_brl", "revenue", "pct", "pct_col", "total_col", 
               "receita_total", "receita", "receita_bruta", "receita_liquida",
@@ -234,9 +195,8 @@ export default function Finance() {
             
             const platformName = platformKey ? String(row[platformKey]) : `Plataforma ${idx + 1}`;
             
-            // Busca o valor total em várias possibilidades (incluindo receita_bruta e receita_liquida)
             const totalValue = pickNumber(row, [
-              "receita_bruta",  // prioridade para receita bruta
+              "receita_bruta",
               "receita_liquida",
               "total", 
               "total_brl", 
@@ -246,7 +206,6 @@ export default function Finance() {
               "receita"
             ]);
             
-            // Busca o percentual se disponível
             const pctValue = pickNumber(row, ["pct", "pct_col", "percentual", "percent"]);
             
             return {
@@ -256,11 +215,9 @@ export default function Finance() {
             };
           });
 
-          console.log("[Finance] 🏪 Revenue by platform:", norm.length, "plataformas");
           setRevenueByPlatform(norm);
         } else {
           setRevenueByPlatform([]);
-          console.warn("[Finance] ❌ Revenue by platform falhou:", rp.reason);
         }
 
         if (rc.status === "fulfilled") {
@@ -275,7 +232,6 @@ export default function Finance() {
           setRevenueByClass(norm);
         } else {
           setRevenueByClass([]);
-          console.warn("[Finance] ❌ Revenue by class falhou:", rc.reason);
         }
 
         if (ric.status === "fulfilled") {
@@ -290,7 +246,6 @@ export default function Finance() {
           setRevenueByItemClass(norm);
         } else {
           setRevenueByItemClass([]);
-          console.warn("[Finance] ❌ Revenue by item class falhou:", ric.reason);
         }
 
         if (rmb.status === "fulfilled") {
@@ -306,7 +261,6 @@ export default function Finance() {
           setRevenueByMacroBairro(norm);
         } else {
           setRevenueByMacroBairro([]);
-          console.warn("[Finance] ❌ Revenue by macro_bairro falhou:", rmb.reason);
         }
 
         if (tc.status === "fulfilled") {
@@ -321,37 +275,17 @@ export default function Finance() {
           setTopClients(norm);
         } else {
           setTopClients([]);
-          console.warn("[Finance] ❌ Top clients falhou:", tc.reason);
         }
-
-        // Resumo final
-        const successCount = results.slice(3).filter((r) => r.status === "fulfilled").length;
-        const failCount = results.slice(3).filter((r) => r.status === "rejected").length;
-        console.log(`[Finance] ✅ ${successCount} sucesso, ${failCount} falhas`);
-        // Timer principal será finalizado no finally para garantir execução mesmo em caso de erro
       } catch (e) {
-        console.error("[Finance] 💥 Erro:", e instanceof Error ? e.message : String(e));
         const msg = e instanceof Error ? e.message : "Erro ao carregar dados financeiros";
         setError(msg.includes("HTTP 400") ? "Alguma coluna informada não existe. Verifique os parâmetros." : msg);
       } finally {
-        // Garantir que o timer principal e o grupo sejam sempre finalizados, mesmo em caso de erro
-        try {
-          console.timeEnd(timerId);
-        } catch {
-          // Timer não existe ou já foi finalizado, ignorar
-        }
-        try {
-          console.groupEnd();
-        } catch {
-          // Grupo não existe ou já foi finalizado, ignorar
-        }
         setLoading(false);
       }
     }
 
   useEffect(() => {
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const platformList = useMemo(() => metaPlatforms, [metaPlatforms]);
@@ -395,7 +329,6 @@ export default function Finance() {
         </GridContainer>
       )}
 
-      {/* Filtros */}
       <FilterContainer>
         <FilterGrid>
           <FormGroup>
@@ -438,6 +371,17 @@ export default function Finance() {
               ))}
             </Select>
           </FormGroup>
+          <FormGroup>
+            <Label>Nota de satisfação</Label>
+            <Select value={String(selectedScore)} onChange={(e) => setSelectedScore(e.target.value === "all" ? "all" : Number(e.target.value))}>
+              <option value="all">Todas</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </Select>
+          </FormGroup>
         </FilterGrid>
         <ButtonGroup>
           <Button 
@@ -451,6 +395,7 @@ export default function Finance() {
             onClick={() => {
               setSelectedPlatform("all");
               setSelectedMacro("all");
+              setSelectedScore("all");
               if (datasetStart && datasetEnd) {
                 setStartDate(datasetStart.toISOString().substring(0, 10));
                 setEndDate(datasetEnd.toISOString().substring(0, 10));
